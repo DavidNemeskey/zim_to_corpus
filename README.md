@@ -29,3 +29,12 @@ directory. There are two caveats:
 
 - currently only `g++` is supported
 - `g++` version of at least 8 is required for C++17 support
+
+### Libraries
+
+The program requires two libraries to work:
+
+- [`libzim`](https://github.com/openzim/libzim) (also called Zimlib) to process
+  the files. Libzim can be installed from the repositories of Linux
+  distributions, or compiled from source;
+- `zlib`, for compression.
