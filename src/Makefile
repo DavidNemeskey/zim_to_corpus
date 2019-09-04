@@ -8,7 +8,7 @@ endif
 
 CPPFLAGS=-g -O3 -I cxxopts/include/ -I zstr/src/ -std=c++17
 LDFLAGS=-g
-LDLIBS=-lzim $(if $(findstring 8,$(CXX_VER)), -lstdc++fs) -lz
+LDLIBS=-lzim $(if $(findstring 8,$(CXX_VER)), -lstdc++fs) -lz -pthread
 
 SRCS=zim_to_dir.cpp
 OBJS=$(subst .cpp,.o,$(SRCS))
