@@ -13,6 +13,8 @@ LDLIBS=-lzim $(if $(findstring 8,$(CXX_VER)), -lstdc++fs) -lz
 SRCS=zim_to_dir.cpp
 OBJS=$(subst .cpp,.o,$(SRCS))
 
+all: zim_to_dir clean
+
 zim_to_dir: $(OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
