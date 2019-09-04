@@ -146,7 +146,7 @@ int main(int argc, char* argv[]) {
                 if (++doc_no % 1000 == 0) {
                     std::cerr << "At the " << doc_no << "th document." << std::endl;
                 }
-                std::cerr << "Writing articule " << title << "..." << std::endl;
+                std::cerr << "Writing article " << title << "..." << std::endl;
                 bw.write(it->getData());
             }
         }
