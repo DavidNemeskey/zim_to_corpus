@@ -240,10 +240,11 @@ void write_articles_to_files(std::string input_file, ZimData& zim_data,
         zstr::ofstream out(fs::path(output_dir) / num,
                            std::ios::out | std::ios::binary);
         for (auto index : fd.second) {
-            std::cerr << "Index " << index << std::endl;
             auto article = f.getArticle(index);
-            std::cerr << "Got the article." << std::endl;
-            out << article.getTitle() << std::endl;
+            auto blob = article.getData();
+            uint32_t size = htonl(static_cast<uint32_t>(blob.size()));
+            out.write(reinterpret_cast<char*>(&size), sizeof(size));
+            out.write(blob.data(), blob.size());
         }
     }
 }
