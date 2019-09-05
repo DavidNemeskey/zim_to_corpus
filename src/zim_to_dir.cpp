@@ -1,3 +1,13 @@
+/**
+ * \file zim_to_dir.cpp
+ * \author David Mark Nemeskey
+ * \version 1.0
+ * \copyright Code is released under the MIT license.
+ *
+ * Converts a static Wikipedia HTML dump in a .zim file to a directory of files.
+ *
+ * For more information, read the command-line help.
+ */
 #include <arpa/inet.h>
 #include <algorithm>
 #include <condition_variable>
@@ -13,6 +23,8 @@
 #include <filesystem>
 
 #include "cxxopts.hpp"
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_sinks.h"
 #include "zstr.hpp"
 #include <zim/zim.h>
 #include <zim/file.h>
@@ -51,6 +63,9 @@ public:
                  cxxopts::value<size_t>()->default_value("4"))
                 ("T,threads", "the number of parallel threads to use.",
                  cxxopts::value<size_t>()->default_value("10"))
+                ("L,log-level", "the logging level. One of "
+                                "{critical, error, warn, info, debug, trace}.",
+                 cxxopts::value<std::string>()->default_value("info"))
                 ("h,help", "print help")
             ;
         } catch (const cxxopts::OptionException& e) {
@@ -105,44 +120,54 @@ typedef std::vector<zim::size_type> IndexList;
 typedef std::pair<size_t, IndexList> FileData;
 
 
+/**
+ * The communication channel between the filter and writer threads.
+ *
+ * The threads communicate via a queue and event variables.
+ */
 struct ZimData {
-    ZimData(size_t num_threads) : max_size(num_threads), curr_size(0),
-                                  filter_done(false) {
+    ZimData(size_t num_threads) : max_size(num_threads), filter_done(false) {
     }
 
-    void push_job(FileData file_data) {
+    /**
+     * Pushes a "job" (output file number and list of valid articles) to the
+     * communication queue.
+     *
+     * \param logger the logger of the calling thread.
+     */
+    void push_job(FileData file_data,
+                  const std::shared_ptr<spdlog::logger>& logger) {
         {
-            std::cerr << "Waiting on queue_not_full..." << std::endl;
+            logger->trace("Waiting on queue_not_full...");
             std::unique_lock<std::mutex> lock(mutex);
-            queue_not_full.wait(lock, [this]{return curr_size < max_size;});
-        }
-        {
-            std::cerr << "Pushing job..." << std::endl;
-            std::lock_guard<std::mutex> guard(mutex);
+            queue_not_full.wait(lock, [this]{return queue.size() < max_size;});
+
+            logger->trace("Pushing job...");
             queue.push(file_data);
-            curr_size++;
         }
-        std::cerr << "Notified!" << std::endl;
+        logger->trace("Notified writers.");
         /* Notify one of the writer threads. */
         data_in_queue.notify_one();
     }
 
-    FileData pop_job() {
+    /**
+     * Pops a "job" (output file number and list of valid articles) from the
+     * communication queue.
+     *
+     * \param logger the logger of the calling thread.
+     */
+    FileData pop_job(const std::shared_ptr<spdlog::logger>& logger) {
         {
-            std::cerr << "Waiting for data_in_queue..." << std::endl;
+            logger->trace("Waiting for data in queue...");
             std::unique_lock<std::mutex> lock(mutex);
-            data_in_queue.wait(lock, [this]{return curr_size > 0 || filter_done;});
-        }
-        {
-            std::cerr << "Accessing queue..." << std::endl;
-            mutex.lock();
+            data_in_queue.wait(lock, [this]{return !queue.empty() || filter_done;});
+
+            logger->trace("Accessing queue...");
             if (!queue.empty()) {
-                std::cerr << "Queue not empty." << std::endl;
+                logger->trace("Queue not empty; popping...");
                 /* New data in the mutex. */
                 FileData fd = queue.front();
                 queue.pop();
-                curr_size--;
-                mutex.unlock();
                 /* Notify the filter thread. */
                 queue_not_full.notify_one();
                 return fd;
@@ -152,8 +177,7 @@ struct ZimData {
                  * Return an empty title list signalling the caller thread to
                  * exit.
                  */
-                std::cerr << "Filter done." << std::endl;
-                mutex.unlock();
+                logger->trace("Filter done; notifying next writer...");
                 /*
                  * Notify the next thread waiting for this condition, so they
                  * can all exit.
@@ -175,15 +199,41 @@ struct ZimData {
 private:
     std::queue<FileData> queue;
     size_t max_size;
-    size_t curr_size;
     bool filter_done;
     std::mutex mutex;
     std::condition_variable data_in_queue;
     std::condition_variable queue_not_full;
 };
 
+/** Creates a logger with the same level and sink as the main logger. */
+std::shared_ptr<spdlog::logger> create_logger(const std::string& name) {
+    auto main_logger = spdlog::get("main");
+    auto logger = std::make_shared<spdlog::logger>(name, main_logger->sinks()[0]);
+    logger->set_level(main_logger->level());
+    return logger;
+}
+
+/**
+ * The function run by the filter thread.
+ *
+ * Iterates through the zim file and filters deleted, redirect and
+ * disambiguation pages, keeping only valid articles. Assembles \p document
+ * long batches of their indices and sends them to the writer threads.
+ *
+ * Filtering is done in a separate thread as it is inherently sequential, but
+ * very fast. The multithreaded setup allows us to quickly identify valid
+ * articles and then process them parallelly in the writer threads.
+ *
+ * \param f the input zim file.
+ * \param zim_data the communication channel between the filter and writer
+ *                 threads.
+ * \param documents the number of documents in a single output file.
+ * \param pattern to recognize disambiguation pages.
+ */
 void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
                      const std::string& pattern) {
+    auto logger = create_logger("filter");
+
     size_t curr_num = 1;
     size_t written = 0;
     IndexList index_list;
@@ -192,26 +242,22 @@ void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
     for (zim::File::const_iterator it = f.begin(); it != f.end(); ++it) {
         std::string title = it->getTitle();
         if (it->getNamespace() != 'A') {
-            std::cerr << "Dropping article " << title
-                      << " not in namespace A..." <<  std::endl;
+            logger->debug("Dropped article {} not in namespace A.", title);
         } else if (it->isRedirect()) {
-            std::cerr << "Dropping redirect article " << title
-                      << "..." <<  std::endl;
+            logger->debug("Dropped redirect article {}.", title);
         } else if (it->isDeleted()) {
-            std::cerr << "Dropping deleted article " << title
-                      << "..." <<  std::endl;
+            logger->debug("Dropped deleted article {}.", title);
         } else if (it->getTitle().find(pattern) != std::string::npos) {
-            std::cerr << "Dropping disambiguation article " << title
-                      << "..." <<  std::endl;
+            logger->debug("Dropped disambiguation article {}.", title);
         } else {
             if (++doc_no % 1000 == 0) {
-                std::cerr << "At the " << doc_no << "th document." << std::endl;
+                logger->debug("Filtering document no {}...", doc_no);
             }
-            std::cerr << "Writing article " << title << "..." << it.getIndex() << std::endl;
+            logger->debug("Keeping article {}.", title);
 
             index_list.push_back(it.getIndex());
             if (index_list.size() == documents) {
-                zim_data.push_job(std::make_pair(curr_num++, index_list));
+                zim_data.push_job(std::make_pair(curr_num++, index_list), logger);
                 index_list = IndexList();
             }
         }
@@ -219,24 +265,45 @@ void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
 
     /* Write the rest. */
     if (!index_list.empty()) {
-        zim_data.push_job(std::make_pair(curr_num++, index_list));
+        zim_data.push_job(std::make_pair(curr_num++, index_list), logger);
     }
     zim_data.filtering_finished();
+
+    logger->info("Filtering done. Kept {} articles out of {}.",
+                 (curr_num - 1) * documents + index_list.size());
 }
 
-void write_articles_to_files(std::string input_file, ZimData& zim_data,
+/**
+ * The function run by the document writer threads.
+ *
+ * Takes a list of article indices produced by the filter thread, reads the
+ * corresponding articles from the zim file and writes them into a file in the
+ * output directory.
+ *
+ * \param id the id of the writer thread -- for identification.
+ * \param input_file the name of the input file. Each writer thread creates
+ *                   their own \c zim::File object over the file, as
+ *                   \c zim::File is not thread-safe.
+ * \param zim_data the communication channel between the filter and writer
+ *                 threads.
+ * \param output_dir the output directory.
+ * \param zeroes the minimum number of digits in the output files' names,
+ *               padded with zeroes.
+ */
+void write_articles_to_files(size_t id, std::string input_file, ZimData& zim_data,
                              const std::string& output_dir, size_t zeroes) {
+    auto logger = create_logger("writer-" + std::to_string(id));
     zim::File f(input_file);
     while (true) {
-        FileData fd = zim_data.pop_job();
+        FileData fd = zim_data.pop_job(logger);
         if (fd.second.empty()) {
-            std::cerr << "Empty titles: exiting..." << std::endl;
+            logger->info("No more articles to write; exiting...");
             break;
         }
-        std::cerr << "Num titles: " << fd.second.size() << std::endl;
 
         std::string num = std::to_string(fd.first);
         num = std::string(zeroes - num.length(), '0') + num + ".htmls.gz";
+        logger->info("Writing file {} with {} titles...", num, fd.second.size());
         zstr::ofstream out(fs::path(output_dir) / num,
                            std::ios::out | std::ios::binary);
         for (auto index : fd.second) {
@@ -253,6 +320,11 @@ int main(int argc, char* argv[]) {
     ArgumentParser parser(argv);
     auto args = parser.parse(argc, argv);
 
+    auto sink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
+    auto logger = std::make_shared<spdlog::logger>("main", sink);
+    logger->set_level(spdlog::level::from_str(args["log-level"].as<std::string>()));
+    spdlog::register_logger(logger);
+
     try {
         zim::File f(args["input-file"].as<std::string>());
         ZimData zim_data(args["threads"].as<size_t>());
@@ -263,18 +335,20 @@ int main(int argc, char* argv[]) {
                                   disambig[args["language"].as<std::string>()]);
         std::vector<std::thread> writer_threads;
         for (size_t i = 0; i < args["threads"].as<size_t>(); ++i) {
-            writer_threads.emplace(writer_threads.end(), write_articles_to_files,
-                                   args["input-file"].as<std::string>(), std::ref(zim_data),
+            writer_threads.emplace(writer_threads.end(),
+                                   write_articles_to_files, i + 1,
+                                   args["input-file"].as<std::string>(),
+                                   std::ref(zim_data),
                                    args["output-dir"].as<std::string>(),
                                    args["zeroes"].as<size_t>());
         }
 
         filter_thread.join();
-        std::cerr << "Filter thread joined." << std::endl;
+        logger->trace("Filter thread joined.");
         std::for_each(writer_threads.begin(), writer_threads.end(),
                       std::mem_fn(&std::thread::join));
-        std::cerr << "Writer threads joined." << std::endl;
+        logger->trace("Writer threads joined.");
     } catch (const std::exception& e) {
-        std::cerr << e.what() << std::endl;
+        logger->critical(e.what());
     }
 }

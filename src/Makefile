@@ -6,7 +6,7 @@ ifeq ($(shell expr $(CXX_VER) \>= 8), 0)
 $(error $(CXX) should at least be of version 8 for proper support of c++17)
 endif
 
-CPPFLAGS=-g -O3 -I cxxopts/include/ -I zstr/src/ -std=c++17
+CPPFLAGS=-g -O3 -I cxxopts/include/ -I zstr/src/ -I spdlog/include -std=c++17
 # Static libstdc++ can be removed if the target machine has the same or
 # newer GLIBCXX version
 LDFLAGS=-g -static-libstdc++

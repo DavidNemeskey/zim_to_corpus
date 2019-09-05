@@ -4,3 +4,6 @@
 [submodule "src/zstr"]
 	path = src/zstr
 	url = https://github.com/mateidavid/zstr
+[submodule "src/src/spdlog"]
+	path = src/src/spdlog
+	url = https://github.com/gabime/spdlog
