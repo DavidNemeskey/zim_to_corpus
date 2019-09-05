@@ -270,7 +270,7 @@ void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
     zim_data.filtering_finished();
 
     logger->info("Filtering done. Kept {} articles out of {}.",
-                 (curr_num - 1) * documents + index_list.size());
+                 (curr_num - 1) * documents + index_list.size(), doc_no);
 }
 
 /**
