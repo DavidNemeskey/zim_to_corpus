@@ -238,8 +238,10 @@ void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
     size_t written = 0;
     IndexList index_list;
 
-    size_t doc_no = 0;
     for (zim::File::const_iterator it = f.begin(); it != f.end(); ++it) {
+        if (it.getIndex() % 10000 == 0) {
+            logger->debug("Filtering document no {}...", it.getIndex());
+        }
         std::string title = it->getTitle();
         if (it->getNamespace() != 'A') {
             logger->debug("Dropped article {} not in namespace A.", title);
@@ -250,9 +252,6 @@ void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
         } else if (it->getTitle().find(pattern) != std::string::npos) {
             logger->debug("Dropped disambiguation article {}.", title);
         } else {
-            if (++doc_no % 1000 == 0) {
-                logger->debug("Filtering document no {}...", doc_no);
-            }
             logger->debug("Keeping article {}.", title);
 
             index_list.push_back(it.getIndex());
@@ -270,7 +269,8 @@ void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
     zim_data.filtering_finished();
 
     logger->info("Filtering done. Kept {} articles out of {}.",
-                 (curr_num - 1) * documents + index_list.size(), doc_no);
+                 (curr_num - 1) * documents + index_list.size(),
+                 f.getCountArticles());
 }
 
 /**
