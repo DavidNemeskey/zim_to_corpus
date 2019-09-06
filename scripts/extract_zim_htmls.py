@@ -67,7 +67,7 @@ def convert_to_json(input_file: str, output_file: str) -> int:
         logging.error(ee)
         return doc_no
     except:
-        logging.exception(f'Error in {input_file}, document {doc_no+1}.')
+        logging.exception(f'Error in {input_file}, document {doc_no}.')
         raise
 
     logging.debug(f'Converted {doc_no} documents from '
