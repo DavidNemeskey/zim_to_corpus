@@ -103,16 +103,13 @@ private:
 };
 
 
-/**
- * List the indices of valid WP articles.
- *
- * \warning
- * In the latest version of the library, this should be
- * \c zim::article_index_type instead. The version in the Ubuntu repository,
- * however, is older, and uses \c zim::size_type. This might cause problems if
- * the version is updated.
- */
-typedef std::vector<zim::size_type> IndexList;
+/** List the indices of valid WP articles. */
+#ifdef ARTICLE_SIZE_TYPE
+#define ARTICLE_INDEX_TYPE zim::size_type
+#else
+#define ARTICLE_INDEX_TYPE zim::article_index_type
+#endif
+typedef std::vector<ARTICLE_INDEX_TYPE> IndexList;
 /**
  * The name (number) of the file and the titles of the articles it should
  * contain.

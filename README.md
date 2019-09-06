@@ -38,3 +38,23 @@ The program requires two libraries to work:
   the files. Libzim can be installed from the repositories of Linux
   distributions, or compiled from source;
 - `zlib`, for compression.
+
+Note that some of the files in the Kiwix archives (most importantly, the
+English WP dump) require a recent version of libzim. For instance, the
+`libzim0v5` version found in Ubuntu Xenial / Linux Mint 18 fails with
+"_error reading zim-file header_". Because of this, libzim version 4.0.0+ is
+recommended.
+
+### Troubleshooting
+
+#### Compilation fails because of `article_index_type` not found
+
+You have an older version of libzim. Either upgrade it to version 4 or newer,
+or compile the code with `-DARTICLE_SIZE_TYPE`.
+
+#### Invalid zim-file header
+
+If `zim_to_dir` fails to read a zim file with the message
+"_error reading zim-file header_", then it was compiled against an outdated
+libzim version. Upgrade libzim to a more recent one.
+against is 
