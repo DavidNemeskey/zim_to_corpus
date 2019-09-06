@@ -3,6 +3,11 @@
 
 """Wikipedia-related functions."""
 
+import gzip
+from itertools import count
+import struct
+from typing import Generator
+
 from bs4 import BeautifulSoup
 from bs4.element import Comment, NavigableString
 
@@ -223,3 +228,25 @@ def parse_zim_html(html_text):
         page[0].level = int(title.name[1:])
 
     return page
+
+
+def enumerate_static_dump(static_dump_file: str) -> Generator[str, None, None]:
+    """
+    Reads the specified static Wikipedia HTML dump file (the output of
+    :command:`zim_to_dir`) and enumerates all pages therein.
+    """
+    with gzip.open(static_dump_file, 'rb') as inf:
+        for doc_no in count(1):
+            size_raw = inf.read(4)
+            if len(size_raw) != 4:
+                raise EOFError(f'{static_dump_file} ended abruptly '
+                               f'after {doc_no} documents.')
+            elif not size_raw:
+                break
+            size = struct.unpack('!i', size_raw)[0]
+            html_raw = inf.read(size)
+            if len(html_raw) != size:
+                raise EOFError(f'{static_dump_file} ended abruptly '
+                               f'after {doc_no} documents.')
+            html = html_raw.decode('utf-8')
+            yield html

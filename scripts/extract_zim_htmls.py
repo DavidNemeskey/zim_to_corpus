@@ -14,18 +14,17 @@ is not.
 """
 
 from argparse import ArgumentParser
-from gzip import open as gopen
+import gzip
 from io import StringIO
 import json
 import logging
 from multiprocessing import Pool
 import os
 import os.path as op
-import struct
 
 from multiprocessing_logging import install_mp_handler
 
-from zim_to_corpus.wiki import parse_zim_html
+from zim_to_corpus.wiki import enumerate_static_dump, parse_zim_html
 
 
 def parse_arguments():
@@ -57,27 +56,15 @@ def convert_to_json(input_file: str, output_file: str) -> int:
     :returns: the number of documents converted.
     """
     logging.debug(f'Converting {input_file} to {output_file}...')
-    doc_no = 0
     try:
-        with gopen(input_file, 'rb') as inf, gopen(output_file, 'wt') as outf:
-            while True:
-                size_raw = inf.read(4)
-                if len(size_raw) != 4:
-                    raise EOFError()
-                elif not size_raw:
-                    break
-                size = struct.unpack('!i', size_raw)[0]
-                html_raw = inf.read(size)
-                if len(html_raw) != size:
-                    raise EOFError()
-                html = html_raw.decode('utf-8')
-                doc_no += 1
+        with gzip.open(output_file, 'wt') as outf:
+            for doc_no, html in enumerate(enumerate_static_dump(input_file), 1):
                 wp = parse_zim_html(html)
                 sio = StringIO()
                 wp.to_html(sio)
                 print(json.dumps(sio.getvalue()), file=outf)
-    except EOFError:
-        logging.error(f'{input_file} ended abruptly after {doc_no} documents.')
+    except EOFError as ee:
+        logging.error(ee)
         return doc_no
     except:
         logging.exception(f'Error in {input_file}, document {doc_no+1}.')
