@@ -5,11 +5,15 @@
 
 import gzip
 from itertools import count
+import re
 import struct
 from typing import Generator
 
 from bs4 import BeautifulSoup
 from bs4.element import Comment, NavigableString
+
+
+headerp = re.compile('[hH][0-9]+')
 
 
 class Unit(list):
@@ -189,7 +193,7 @@ def parse_section(section_tag):
             if len(p):
                 section.add(p)
                 last_p = p
-        elif child.name.startswith('h'):
+        elif headerp.match(child.name):
             section.title = child.get_text()
             section.level = int(child.name[1:])
         elif child.name == 'ol' or child.name == 'ul':
