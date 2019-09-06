@@ -79,6 +79,9 @@ def convert_to_json(input_file: str, output_file: str) -> int:
     except EOFError:
         logging.error(f'{input_file} ended abruptly after {doc_no} documents.')
         return doc_no
+    except:
+        logging.exception(f'Error in {input_file}, document {doc_no+1}.')
+        raise
 
     logging.debug(f'Converted {doc_no} documents from '
                   f'{input_file} to {output_file}.')
