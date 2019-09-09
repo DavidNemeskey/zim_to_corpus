@@ -5,19 +5,20 @@
 
 import gzip
 from itertools import count
+import logging
 import re
 import struct
-from typing import Generator
+from typing import Generator, Union
 
 from bs4 import BeautifulSoup
-from bs4.element import Comment, NavigableString
+from bs4.element import Comment, NavigableString, Tag
 
 
 class ZimHtmlParser:
     """
-    Parses the HTML text of a Wikipedia page. Due to the sorry state of the
-    WP tooling, this is the only reliable way of extracting the text from
-    a WP page.
+    Parses the HTML text of a Wikipedia page to a simpler and cleaner HTML
+    structure. Due to the sorry state of the WP tooling, this is the only
+    reliable way of extracting the text from a WP page.
 
     Of course, static HTML dumps are unsupported, so the only way of getting
     them is through the
@@ -29,6 +30,7 @@ class ZimHtmlParser:
     on wikipedia.org. Also, even some of the .zim files have differently
     structured HTMLs; however, the main Wikipedia dumps (_all_) should work.
     """
+    # Template for the output (simplified) html
     html_template = """<html>
     <head>
         <title></title>
@@ -38,14 +40,17 @@ class ZimHtmlParser:
     </body>
 </html>"""
 
+    # Pattern for recognizing headers
     headerp = re.compile('[hH][0-9]+')
+    # Pattern for recognizing lists
     listp = re.compile('[ou]l')
 
-    def __init__(self, html_text):
+    def __init__(self, html_text: str):
         self.old_bs = BeautifulSoup(html_text)
         self.new_bs = BeautifulSoup(self.html_template)
 
-    def simplify(self):
+    def simplify(self) -> BeautifulSoup:
+        """Does the conversion / simplification."""
         self.new_bs.html.head.title.append(self.old_bs.find('title').get_text())
 
         # Let's start with the main content
@@ -66,7 +71,15 @@ class ZimHtmlParser:
 
         return self.new_bs
 
-    def parse_section(self, old_section, new_parent):
+    def parse_section(self, old_section: Tag, new_parent: Tag):
+        """
+        Parses a section. Only adds the simplified section to the new DOM if
+        it is not empty.
+
+        :param old_section: the section tag in the DOM of the original page.
+        :param new_parent: the to-be-parent of section tag in simplified DOM.
+                           Mostly `<body>` or another `<section>`.
+        """
         new_section = self.new_bs.new_tag('section')
         for child in self.filter_tags(old_section):
             if isinstance(child, NavigableString):
@@ -83,17 +96,30 @@ class ZimHtmlParser:
             elif self.listp.match(child.name):
                 self.parse_list(child, new_section)
 
-        # Only append non-empty sections
-        if list(new_section.children):
+        # Only append non-empty sections (having a single header still counts
+        # as empty)
+        if [c for c in new_section.children if not self.headerp.match(c.name)]:
             new_parent.append(new_section)
 
-    def parse_list(self, old_list, new_parent):
+    def parse_list(self, old_list: Tag, new_parent: Tag):
+        """
+        Parses a(n ordered or unordered) list. Only adds the simplified list to
+        the new DOM if it is not empty.
+
+        :param old_list: the `ol` or `ul` tag in the DOM of the original page.
+        :param new_parent: the to-be-parent of list tag in simplified DOM.
+        """
         new_list = self.new_bs.new_tag(old_list.name)
         for child in self.filter_tags(old_list):
             if isinstance(child, NavigableString):
                 raise ValueError(f'Unexpected navigablestring in {old_list.name}')
             elif child.name != 'li':
-                raise ValueError(f'Unexpected tag {child.name} in {old_list.name}')
+                if child.name in ('span', 'div'):
+                    text = child.get_text()
+                    if text.strip():
+                        # Just warning, so that we don't break parsing
+                        logging.warning(f'Unexpected tag {child.name} '
+                                        f'>{text}< in {old_list.name}')
             else:
                 self.parse_li(child, new_list)
 
@@ -102,6 +128,13 @@ class ZimHtmlParser:
             new_parent.append(new_list)
 
     def parse_li(self, old_li, new_list):
+        """
+        Parses a list item. Only adds the simplified item to
+        the new DOM if it is not empty.
+
+        :param old_li: the `li` tag in the DOM of the original page.
+        :param new_list: the list tag in simplified DOM.
+        """
         new_li = self.new_bs.new_tag('li')
 
         content = []
@@ -119,7 +152,19 @@ class ZimHtmlParser:
         if list(new_li.children):
             new_list.append(new_li)
 
-    def add_tag(self, name, content, parent, position=None, **kwattrs):
+    def add_tag(self, name: str, content: str, parent: Tag,
+                position: int = None, **kwattrs: str):
+        """
+        Adds a new tag under a parent tag with textual content.
+
+        :param name: the name of the new tag (e.g. `p`)
+        :param content: its content.
+        :param parent: the tag under which the new tag is put.
+        :param position: if `None` (the default), the new tag is appended to
+                         the children of _parent_; otherwise, it is inserted at
+                         the specified position.
+        :returns: the newly created tag.
+        """
         tag = self.new_bs.new_tag(name, **kwattrs)
         tag.append(content)
         if position is not None:
@@ -129,8 +174,17 @@ class ZimHtmlParser:
         return tag
 
     @staticmethod
-    def filter_tags(tag, empty_strings_too=True):
-        """Enumerates the non-comment, non-newline children of _tag_."""
+    def filter_tags(tag: Tag, empty_strings_too=True) -> Generator[
+            Union[Tag, NavigableString], None, None
+    ]:
+        """
+        Enumerates the non-comment, non-empty children of _tag_.
+
+        :param tag: the tag whose children are filtered.
+        :param empty_strings_too: if `True` (the default), all empty
+                                  `<span>`, `<div>` or :class:`NavigableString`
+                                  children are filtered as well.
+        """
         for child in tag.children:
             if isinstance(child, Comment):
                 continue
@@ -141,7 +195,8 @@ class ZimHtmlParser:
                 yield child
 
     @staticmethod
-    def parse(html_text):
+    def parse(html_text: str) -> BeautifulSoup:
+        """Convenience method for ``ZimHtmlParser(html_text).simplify()``."""
         return ZimHtmlParser(html_text).simplify()
 
 
