@@ -13,195 +13,7 @@ from bs4 import BeautifulSoup
 from bs4.element import Comment, NavigableString
 
 
-headerp = re.compile('[hH][0-9]+')
-
-
-class Unit(list):
-    """A unit of Wikipedia content. A subclass of `list`."""
-    def __init__(self, *children):
-        super().__init__(*children)
-
-    def add(self, unit: 'Unit') -> 'Unit':
-        """
-        Adds a unit under this one.
-
-        :returns: the new unit.
-        """
-        self.append(unit)
-        return unit
-
-    def __str__(self):
-        params = self.params()
-        params_str = f'({params})' if params else ''
-        return f'{self.__class__.__name__}{params_str}:[' + ', '.join(
-            str(c) for c in self) + ']\n'
-
-    def params(self):
-        """
-        Returns the unit-specific parameters that should be displayed by
-        :meth:`__str__`.
-        """
-        return None
-
-    def to_html(self, outf, indent=0):
-        for unit in self:
-            if isinstance(unit, Unit):
-                unit.to_html(outf, indent + 4)
-
-
-class WikiPage(Unit):
-    """:class:`Unit` representing a whole Wikipedia page (extract)."""
-    def __init__(self, attrs, *children):
-        self.attrs = attrs
-        super().__init__(*children)
-
-    def params(self):
-        return self.attrs
-
-    def to_html(self, outf, indent=0):
-        filler, filler1 = ' ' * indent, ' ' * (indent + 4)
-        print(f'{filler}<html>', file=outf)
-        print(f'{filler1}<head><title>{self.attrs["title"]}</title></head>',
-              file=outf)
-        print(f'{filler1}<body>', file=outf)
-        super().to_html(outf, indent)
-        print(f'{filler1}</body>\n{filler}</html>', file=outf)
-
-
-class Section(Unit):
-    """:class:`Unit` representing a section."""
-    def __init__(self, title=None, level=None, *children):
-        """
-        :param title: the title of the section (the text of the `h*` tag)
-        :param level: the number in the `h` tag
-        """
-        self.title = title
-        self.level = level
-        super().__init__(*children)
-
-    def params(self):
-        return {'title': self.title, 'level': self.level}
-
-    def to_html(self, outf, indent=0):
-        filler, filler1 = ' ' * indent, ' ' * (indent + 4)
-        print(f'{filler}<section>', file=outf)
-        print(f'{filler1}<h{self.level}>{self.title}</h{self.level}>', file=outf)
-        super().to_html(outf, indent)
-        print(f'{filler}</section>', file=outf)
-
-
-class Paragraph(Unit):
-    """:class:`Unit` representing a paragraph of text."""
-    def to_html(self, outf, indent=0):
-        filler, filler1 = ' ' * indent, ' ' * (indent + 4)
-        print(f'{filler}<p>', file=outf)
-        for line in self:
-            print(f'{filler1}{line}', file=outf)
-        print(f'{filler}</p>', file=outf)
-
-
-class List(Unit):
-    """:class:`Unit` representing an ordered or unordered list."""
-    def __init__(self, ordered=False, *children):
-        self.ordered = ordered
-        super().__init__(*children)
-
-    def to_html(self, outf, indent=0):
-        filler, filler1, filler2 = (
-            ' ' * indent, ' ' * (indent + 4), ' ' * (indent + 8))
-        tag = 'ol' if self.ordered else 'ul'
-        print(f'{filler}<{tag}>', file=outf)
-        li_open = False
-        for thing in self:
-            if isinstance(thing, Unit):
-                assert li_open
-                thing.to_html(outf, indent + 8)
-            else:
-                if li_open:
-                    print(f'{filler1}</li>', file=outf)
-                print(f'{filler1}<li>', file=outf)
-                print(f'{filler2}{thing}', file=outf)
-                li_open = True
-        else:
-            if li_open:
-                print(f'{filler1}</li>', file=outf)
-        print(f'{filler}</{tag}>', file=outf)
-
-
-def filter_tags(tag):
-    """Enumerates the non-comment, non-newline children of _tag_."""
-    for child in tag.children:
-        if isinstance(child, Comment):
-            continue
-        elif isinstance(child, NavigableString) and child == '\n':
-            continue
-        else:
-            yield child
-
-
-def parse_li(li_tag):
-    content = []
-    children = []
-    for child in filter_tags(li_tag):
-        if isinstance(child, NavigableString):
-            content.append(child)
-        elif child.name == 'ul' or child.name == 'ol':
-            children.append(parse_list(child))
-        else:
-            content.append(child.get_text())
-    return [''.join(content).strip()] + children
-
-
-def parse_list(lst_tag):
-    lst = List(ordered=lst_tag.name == 'ol')
-    for child in filter_tags(lst_tag):
-        if isinstance(child, NavigableString):
-            raise ValueError(f'Unexpected navigablestring in {lst_tag.name}')
-        elif child.name != 'li':
-            raise ValueError(f'Unexpected tag {child.name} in {lst_tag.name}')
-        else:
-            lst.extend(parse_li(child))
-    return lst
-
-
-def parse_section(section_tag):
-    section = Section()
-    # These two variables are needed to account for NavigableStrings between
-    # <p>s. Might not be necessary actually.
-    unpaired_strs = []
-    last_p = None
-    for child in filter_tags(section_tag):
-        if isinstance(child, NavigableString):
-            raise ValueError('NavigableString in section!')
-            text = child.strip()
-            if text:
-                if last_p:
-                    last_p.add(text)
-                else:
-                    unpaired_strs.append(text)
-        elif child.name == 'section':
-            section.add(parse_section(child))
-        elif child.name == 'p':
-            p = Paragraph()
-            text = ' '.join(child.get_text().split())
-            if unpaired_strs:
-                for us in unpaired_strs:
-                    p.add(us)
-                unpaired_strs = []
-            if text:
-                p.add(text)
-            if len(p):
-                section.add(p)
-                last_p = p
-        elif headerp.match(child.name):
-            section.title = child.get_text()
-            section.level = int(child.name[1:])
-        elif child.name == 'ol' or child.name == 'ul':
-            section.add(parse_list(child))
-    return section
-
-
-def parse_zim_html(html_text):
+class ZimHtmlParser:
     """
     Parses the HTML text of a Wikipedia page. Due to the sorry state of the
     WP tooling, this is the only reliable way of extracting the text from
@@ -217,21 +29,120 @@ def parse_zim_html(html_text):
     on wikipedia.org. Also, even some of the .zim files have differently
     structured HTMLs; however, the main Wikipedia dumps (_all_) should work.
     """
-    bs = BeautifulSoup(html_text)
-    title = bs.find(id='titleHeading')
-    body = bs.find('div', id='mw-content-text')
-    # Let's get rid of the references now
-    for sup in body.find_all('sup', {'class': 'mw-ref'}):
-        sup.decompose()
-    page = WikiPage({'title': title.get_text()})
-    for child in body.children:
-        if child.name == 'section':
-            page.add(parse_section(child))
-    if len(page) > 0 and not page[0].title:  # most likely
-        page[0].title = title.get_text()
-        page[0].level = int(title.name[1:])
+    html_template = """<html>
+    <head>
+        <title></title>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+    </body>
+</html>"""
 
-    return page
+    headerp = re.compile('[hH][0-9]+')
+    listp = re.compile('[ou]l')
+
+    def __init__(self, html_text):
+        self.old_bs = BeautifulSoup(html_text)
+        self.new_bs = BeautifulSoup(self.html_template)
+
+    def simplify(self):
+        self.new_bs.html.head.title.append(self.old_bs.find('title').get_text())
+
+        # Let's start with the main content
+        old_body = self.old_bs.find('div', id='mw-content-text')
+        # Let's get rid of the references now
+        for sup in old_body.find_all('sup', {'class': 'mw-ref'}):
+            sup.decompose()
+        for child in old_body.children:
+            if child.name == 'section':
+                self.parse_section(child, self.new_bs.html.body)
+
+        # Add the first (title) header, which is usually outside of mw-content-text
+        title = self.old_bs.find(id='titleHeading')
+        if title and not self.new_bs.find('h1'):
+            first_section = self.new_bs.find('section')
+            if first_section:
+                self.add_tag(title.name, title.get_text(), first_section, 0)
+
+        return self.new_bs
+
+    def parse_section(self, old_section, new_parent):
+        new_section = self.new_bs.new_tag('section')
+        for child in self.filter_tags(old_section):
+            if isinstance(child, NavigableString):
+                # TODO out-of-order NavigableString
+                pass
+            if child.name == 'section':
+                self.parse_section(child, new_section)
+            elif child.name == 'p':
+                text = ' '.join(child.get_text().split())
+                if text:
+                    self.add_tag('p', text, new_section)
+            elif self.headerp.match(child.name):
+                self.add_tag(child.name, child.get_text(), new_section)
+            elif self.listp.match(child.name):
+                self.parse_list(child, new_section)
+
+        # Only append non-empty sections
+        if list(new_section.children):
+            new_parent.append(new_section)
+
+    def parse_list(self, old_list, new_parent):
+        new_list = self.new_bs.new_tag(old_list.name)
+        for child in self.filter_tags(old_list):
+            if isinstance(child, NavigableString):
+                raise ValueError(f'Unexpected navigablestring in {old_list.name}')
+            elif child.name != 'li':
+                raise ValueError(f'Unexpected tag {child.name} in {old_list.name}')
+            else:
+                self.parse_li(child, new_list)
+
+        # Only append non-empty lists
+        if list(new_list.children):
+            new_parent.append(new_list)
+
+    def parse_li(self, old_li, new_list):
+        new_li = self.new_bs.new_tag('li')
+
+        content = []
+        for child in self.filter_tags(old_li, False):
+            if isinstance(child, NavigableString):
+                content.append(child)
+            elif self.listp.match(child.name):
+                self.parse_list(child, new_li)
+            else:
+                content.append(child.get_text())
+
+        content = ' '.join(' '.join(content).split())
+        if content:
+            new_li.insert(0, content)
+        if list(new_li.children):
+            new_list.append(new_li)
+
+    def add_tag(self, name, content, parent, position=None, **kwattrs):
+        tag = self.new_bs.new_tag(name, **kwattrs)
+        tag.append(content)
+        if position is not None:
+            parent.insert(position, tag)
+        else:
+            parent.append(tag)
+        return tag
+
+    @staticmethod
+    def filter_tags(tag, empty_strings_too=True):
+        """Enumerates the non-comment, non-newline children of _tag_."""
+        for child in tag.children:
+            if isinstance(child, Comment):
+                continue
+            elif isinstance(child, NavigableString) and empty_strings_too:
+                if child.strip():
+                    yield child
+            else:
+                yield child
+
+    @staticmethod
+    def parse(html_text):
+        return ZimHtmlParser(html_text).simplify()
 
 
 def enumerate_static_dump(static_dump_file: str) -> Generator[str, None, None]:
