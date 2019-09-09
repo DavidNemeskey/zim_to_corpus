@@ -48,6 +48,7 @@ class ZimHtmlParser:
     def __init__(self, html_text: str):
         self.old_bs = BeautifulSoup(html_text)
         self.new_bs = BeautifulSoup(self.html_template)
+        self.title = self.old_bs.find('title').get_text()
 
     def simplify(self) -> BeautifulSoup:
         """Does the conversion / simplification."""
@@ -83,9 +84,10 @@ class ZimHtmlParser:
         new_section = self.new_bs.new_tag('section')
         for child in self.filter_tags(old_section):
             if isinstance(child, NavigableString):
-                # TODO out-of-order NavigableString
-                raise ValueError(f'NavigableString >{child}< in {old_section.name}')
-            if child.name == 'section':
+                logging.warning(f'NavigableString >{child}< in '
+                                f'{old_section.name} in {self.title}.')
+                # raise ValueError(f'NavigableString >{child}< in {old_section.name}')
+            elif child.name == 'section':
                 self.parse_section(child, new_section)
             elif child.name == 'p':
                 text = ' '.join(child.get_text().split())
@@ -112,7 +114,9 @@ class ZimHtmlParser:
         new_list = self.new_bs.new_tag(old_list.name)
         for child in self.filter_tags(old_list):
             if isinstance(child, NavigableString):
-                raise ValueError(f'Unexpected navigablestring >{child}< in {old_list.name}')
+                logging.warning(f'Unexpected navigablestring >{child}< in '
+                                f'{old_list.name} in {self.title}')
+                # raise ValueError(f'Unexpected navigablestring >{child}< in {old_list.name}')
             elif child.name != 'li':
                 if child.name in ('span', 'div'):
                     text = child.get_text()
