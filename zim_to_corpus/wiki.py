@@ -112,7 +112,7 @@ class ZimHtmlParser:
         new_list = self.new_bs.new_tag(old_list.name)
         for child in self.filter_tags(old_list):
             if isinstance(child, NavigableString):
-                raise ValueError(f'Unexpected navigablestring in {old_list.name}')
+                raise ValueError(f'Unexpected navigablestring >{child}< in {old_list.name}')
             elif child.name != 'li':
                 if child.name in ('span', 'div'):
                     text = child.get_text()
@@ -208,11 +208,11 @@ def enumerate_static_dump(static_dump_file: str) -> Generator[str, None, None]:
     with gzip.open(static_dump_file, 'rb') as inf:
         for doc_no in count(1):
             size_raw = inf.read(4)
-            if len(size_raw) != 4:
+            if not size_raw:
+                break
+            elif len(size_raw) != 4:
                 raise EOFError(f'{static_dump_file} ended abruptly '
                                f'after {doc_no} documents.')
-            elif not size_raw:
-                break
             size = struct.unpack('!i', size_raw)[0]
             html_raw = inf.read(size)
             if len(html_raw) != size:
