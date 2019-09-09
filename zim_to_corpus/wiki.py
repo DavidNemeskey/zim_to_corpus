@@ -71,7 +71,7 @@ class ZimHtmlParser:
         for child in self.filter_tags(old_section):
             if isinstance(child, NavigableString):
                 # TODO out-of-order NavigableString
-                pass
+                raise ValueError(f'NavigableString >{child}< in {old_section.name}')
             if child.name == 'section':
                 self.parse_section(child, new_section)
             elif child.name == 'p':
