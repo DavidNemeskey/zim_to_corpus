@@ -48,6 +48,9 @@ class Converter:
 
 
 # TODO tokenization
+# TODO to corpus format
+# TODO to markdown
+# TODO section filtering
 class WT2Converter(Converter):
     def __init__(self, bullet: str = None, indent: int = 0):
         """
