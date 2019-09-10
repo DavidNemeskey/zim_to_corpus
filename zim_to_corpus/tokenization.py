@@ -9,6 +9,7 @@ This package provides a simple whitespace tokenizer, as well as wrappers for
 two proper, third-party tokenizers: spaCy and quntoken.
 """
 
+import re
 from typing import List
 
 class Tokenizer:
@@ -33,7 +34,7 @@ class Tokenizer:
                   a single item; if tokenization was not requested, the inner
                   lists.
         """
-        if not self.do_split or self.do_token:
+        if not (self.do_split or self.do_token):
             return [[text]]
         else:
             return self.do_tokenize(text)
@@ -49,8 +50,23 @@ class Tokenizer:
 
 
 class WhitespaceTokenizer(Tokenizer):
+    endp = re.compile('[.!?]$')
+
     def do_tokenize(self, text):
         tokens = text.split()
         sentences = []
         if self.do_split:
-            pass
+            sentence = []
+            for token in tokens:
+                sentence.append(token)
+                if self.endp.search(token):
+                    sentences.append(sentence)
+                    sentence = []
+            if sentence:
+                sentences.append(sentence)
+            if not self.do_token:
+                sentences = [[' '.join(sentence)] for sentence in sentences]
+        else:
+            # No sentence splitting => tokenization was requested
+            sentences.append(tokens)
+        return sentences
