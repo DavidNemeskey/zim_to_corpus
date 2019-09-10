@@ -6,12 +6,13 @@
 import gzip
 from itertools import count
 import logging
-import re
 import struct
 from typing import Generator, Union
 
 from bs4 import BeautifulSoup
 from bs4.element import Comment, NavigableString, Tag
+
+from zim_to_corpus.html import headerp, listp
 
 
 class ZimHtmlParser:
@@ -39,11 +40,6 @@ class ZimHtmlParser:
     <body>
     </body>
 </html>"""
-
-    # Pattern for recognizing headers
-    headerp = re.compile('[hH][0-9]+')
-    # Pattern for recognizing lists
-    listp = re.compile('[ou]l')
 
     def __init__(self, html_text: str):
         self.old_bs = BeautifulSoup(html_text)
@@ -93,14 +89,14 @@ class ZimHtmlParser:
                 text = ' '.join(child.get_text().split())
                 if text:
                     self.add_tag('p', text, new_section)
-            elif self.headerp.match(child.name):
+            elif headerp.match(child.name):
                 self.add_tag(child.name, child.get_text(), new_section)
-            elif self.listp.match(child.name):
+            elif listp.match(child.name):
                 self.parse_list(child, new_section)
 
         # Only append non-empty sections (having a single header still counts
         # as empty)
-        if [c for c in new_section.children if not self.headerp.match(c.name)]:
+        if [c for c in new_section.children if not headerp.match(c.name)]:
             new_parent.append(new_section)
 
     def parse_list(self, old_list: Tag, new_parent: Tag):
@@ -145,7 +141,7 @@ class ZimHtmlParser:
         for child in self.filter_tags(old_li, False):
             if isinstance(child, NavigableString):
                 content.append(child)
-            elif self.listp.match(child.name):
+            elif listp.match(child.name):
                 self.parse_list(child, new_li)
             else:
                 content.append(child.get_text())
@@ -198,10 +194,10 @@ class ZimHtmlParser:
             else:
                 yield child
 
-    @staticmethod
-    def parse(html_text: str) -> BeautifulSoup:
-        """Convenience method for ``ZimHtmlParser(html_text).simplify()``."""
-        return ZimHtmlParser(html_text).simplify()
+
+def parse(html_text: str) -> BeautifulSoup:
+    """Convenience method for ``ZimHtmlParser(html_text).simplify()``."""
+    return ZimHtmlParser(html_text).simplify()
 
 
 def enumerate_static_dump(static_dump_file: str) -> Generator[str, None, None]:
