@@ -52,9 +52,7 @@ class ZimHtmlParser:
 
         # Let's start with the main content
         old_body = self.old_bs.find('div', id='mw-content-text')
-        # Let's get rid of the references now
-        for sup in old_body.find_all('sup', {'class': 'mw-ref'}):
-            sup.decompose()
+        self.filter_tree(old_body)
         for child in old_body.children:
             if child.name == 'section':
                 self.parse_section(child, self.new_bs.html.body)
@@ -67,6 +65,14 @@ class ZimHtmlParser:
                 self.add_tag(title.name, title.get_text(), first_section, 0)
 
         return self.new_bs
+
+    def filter_tree(self, tree: Tag):
+        """Filters references from the text."""
+        for sup in tree.find_all('sup', {'class': 'mw-ref'}):
+            sup.decompose()
+        # And linkback texts
+        for linkback in tree.find_all('span', {'class': 'mw-linkback-text'}):
+            linkback.decompose()
 
     def parse_section(self, old_section: Tag, new_parent: Tag):
         """
@@ -89,6 +95,8 @@ class ZimHtmlParser:
                 text = ' '.join(child.get_text().split())
                 if text:
                     self.add_tag('p', text, new_section)
+            elif child.name == 'div':
+                self.parse_div(child, new_section)
             elif headerp.match(child.name):
                 self.add_tag(child.name, child.get_text(), new_section)
             elif listp.match(child.name):
@@ -98,6 +106,31 @@ class ZimHtmlParser:
         # as empty)
         if [c for c in new_section.children if not headerp.match(c.name)]:
             new_parent.append(new_section)
+
+    def parse_div(self, old_div: Tag, new_section: Tag):
+        """
+        Sometimes there are divs between the sections and the lower-level tags,
+        such as ``p`` or lists. This method is basically the same as 
+        :meth:`parse_section`, only it doesn't allow ``section``s inside of
+        the ``div``.
+        """
+        for child in self.filter_tags(old_div):
+            if isinstance(child, NavigableString):
+                logging.warning(f'NavigableString >{child}< in '
+                                f'div in {self.title}.')
+                # raise ValueError(f'NavigableString >{child}< in {old_section.name}')
+            elif child.name == 'p':
+                text = ' '.join(child.get_text().split())
+                if text:
+                    self.add_tag('p', text, new_section)
+            elif child.name == 'div':
+                self.parse_div(child, new_section)
+            elif child.name == 'section':
+                logging.warning(f'section in div in {self.title}.')
+            elif headerp.match(child.name):
+                self.add_tag(child.name, child.get_text(), new_section)
+            elif listp.match(child.name):
+                self.parse_list(child, new_section)
 
     def parse_list(self, old_list: Tag, new_parent: Tag):
         """
