@@ -10,6 +10,7 @@ two proper, third-party tokenizers: spaCy and quntoken.
 """
 
 import re
+import sys
 from typing import List
 
 class Tokenizer:
@@ -50,9 +51,14 @@ class Tokenizer:
 
 
 class WhitespaceTokenizer(Tokenizer):
+    """
+    A very simple tokenizer that splits tokens on whitespaces and sentences on
+    the characters '.', '!' and '?'.
+    """
+    # Simplistic sentence end recognizer pattern
     endp = re.compile('[.!?]$')
 
-    def do_tokenize(self, text):
+    def do_tokenize(self, text: str) -> List[List[str]]:
         tokens = text.split()
         sentences = []
         if self.do_split:
@@ -73,7 +79,19 @@ class WhitespaceTokenizer(Tokenizer):
 
 
 class SpacyTokenizer(Tokenizer):
-    def __init__(self, model, use_parser=False, *args, **kwargs):
+    """Uses spaCy to tokenize text."""
+    def __init__(self, model: str, use_parser: bool = False,
+                 *args: bool, **kwargs: bool):
+        """
+        Creates the tokenizer.
+
+        :param model: name of the spaCy model to use.
+        :param use_parser: if ``False`` (the default), use the ``sentencizer``
+                           component instead of ``parser`` for sentence boundary
+                           detection. It is faster, but probably less robust.
+        :param args: forwarded to :meth:`Tokenizer.__init__`.
+        :param kwargs: forwarded to :meth:`Tokenizer.__init__`.
+        """
         super().__init__(*args, **kwargs)
         try:
             import spacy
@@ -91,7 +109,7 @@ class SpacyTokenizer(Tokenizer):
             raise OSError(f'Model {model} is not available. Install it by '
                           f'e.g. python -m spacy download {model}')
 
-    def do_tokenize(self, text):
+    def do_tokenize(self, text: str) -> List[List[str]]:
         doc = self.nlp(text)
         if self.do_split:
             if self.do_token:
@@ -101,3 +119,59 @@ class SpacyTokenizer(Tokenizer):
         else:
             # No sentence splitting => tokenization was requested
             return [list(map(str, doc))]
+
+
+class QunTokenizer(Tokenizer):
+    # Regex to extract a sentence from quntoken's output
+    senp = re.compile(r'<s>(.+?)</s>', re.S)
+    # Regex to enumerate the XML tags from the sentence in quntoken's output
+    tagp = re.compile(r'<(ws?|c)>(.+?)</\1>', re.S)
+
+    def __init__(self, path, *args, **kwargs):
+        """
+        Creates the tokenizer.
+
+        :param path: path to the quntoken Python wrapper (``lib`` directory).
+        :param args: forwarded to :meth:`Tokenizer.__init__`.
+        :param kwargs: forwarded to :meth:`Tokenizer.__init__`.
+        """
+        super().__init__(*args, **kwargs)
+        try:
+            sys.path.insert(1, path)
+            from quntoken import QunToken
+            self.qt = QunToken('xml', 'token', False)
+        except ImportError:
+            raise ImportError(
+                'quntoken is not available. Download and install '
+                'from https://github.com/DavidNemeskey/quntoken/tree/v1'
+            )
+
+    def do_tokenize(self, text: str) -> List[List[str]]:
+        tokenized = self.qt.tokenize(text)
+        if self.do_split:
+            sentences = []
+            for m in self.senp.finditer(tokenized):
+                sent = m.group(1)
+                sentences.append(self.get_tokens(sent) if self.do_token else
+                                 [self.get_text(sent)])
+            return sentences
+        else:
+            # No sentence splitting => tokenization was requested
+            return [self.get_tokens(tokenized)]
+
+    def get_text(self, xml_text: str) -> str:
+        """
+        Extracts the original text from the quntoken output.
+
+        :param xml_text: the XML output from quntoken.
+        """
+        return ''.join(m.group(2) for m in self.tagp.finditer(xml_text))
+
+    def get_tokens(self, xml_text: str) -> List[str]:
+        """
+        Extracts all tokens (non-whitespace units) from the quntoken output.
+
+        :param xml_text: the XML output from quntoken.
+        """
+        return [m.group(2) for m in self.tagp.finditer(xml_text)
+                if m.group(1) != 'ws']
