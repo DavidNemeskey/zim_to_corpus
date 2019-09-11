@@ -8,6 +8,7 @@ other formats.
 
 from io import StringIO
 import re
+from typing import Dict
 
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
@@ -25,9 +26,23 @@ class Converter:
         :returns: the converted text.
         """
         out = StringIO()
+        self.convert_document(html, out)
+        return out.getvalue()
+
+    def convert_document(self, html: BeautifulSoup, out: StringIO):
+        """The topmost conversion function."""
         for section in (c for c in html.find('body').children if isinstance(c, Tag)):
             self.convert_section(section, out)
-        return out.getvalue()
+
+    @classmethod
+    def default_tokenization(cls) -> Dict[str, bool]:
+        """
+        Returns the default tokenization presets for the converter. These are
+        the parameters accepted by all
+        :class:`zim_to_corpus.tokenizerion.Tokenizer`s. The default of the
+        default is no tokenization or sentence splitting.
+        """
+        return {'split_sentences': False, 'tokenize': False}
 
     def convert_list(self, lst: Tag, out: StringIO, level: int = 0):
         """
@@ -74,6 +89,16 @@ class WT2Converter(Converter):
         """
         self.bullet = f' {bullet}' if bullet else ''
         self.indent = ' ' * indent
+
+    @classmethod
+    def default_tokenization(cls) -> Dict[str, bool]:
+        """
+        Returns the default tokenization presets for the converter. These are
+        the parameters accepted by all
+        :class:`zim_to_corpus.tokenizerion.Tokenizer`s. The default of the
+        default is no tokenization or sentence splitting.
+        """
+        return {'split_sentences': False, 'tokenize': True}
 
     def convert_section(self, section: Tag, out: StringIO):
         """
@@ -158,7 +183,17 @@ class BERTConverter(Converter):
         self.bullet = f'{bullet} ' if bullet else ''
         self.indent = ' ' * indent
 
-    def __call__(self, html: BeautifulSoup) -> str:
+    @classmethod
+    def default_tokenization(cls) -> Dict[str, bool]:
+        """
+        Returns the default tokenization presets for the converter. These are
+        the parameters accepted by all
+        :class:`zim_to_corpus.tokenizerion.Tokenizer`s. The default of the
+        default is no tokenization or sentence splitting.
+        """
+        return {'split_sentences': True, 'tokenize': False}
+
+    def convert_document(self, html: BeautifulSoup, out: StringIO):
         """
         Removes headers and/or lists if so instructed in the constructor.
 
@@ -168,7 +203,7 @@ class BERTConverter(Converter):
         """
         if self.pattern:
             remove_tags(html, pattern=self.pattern)
-        return super().__call__(html)
+        return super().convert_document(html, out)
 
     def convert_section(self, section: Tag, out: StringIO):
         """
@@ -222,16 +257,61 @@ class TsvConverter(Converter):
     def __init__(self, headers=False, lists=False, bullet: str = None):
         self.bullet = bullet
 
+    @classmethod
+    def default_tokenization(cls) -> Dict[str, bool]:
+        """
+        Returns the default tokenization presets for the converter. These are
+        the parameters accepted by all
+        :class:`zim_to_corpus.tokenizerion.Tokenizer`s. The default of the
+        default is no tokenization or sentence splitting.
+        """
+        return {'split_sentences': True, 'tokenize': True}
+
+    def convert_document(self, html: BeautifulSoup, out: StringIO):
+        """Prints the title of the document."""
+        print(f'# newdoc id = {html.html.head.title.get_text()}', file=out)
+        return super().convert_document(html, out)
+
     def convert_section(self, section: Tag, out: StringIO):
         for child in section.children:
-            if headerp.match(child.name):
-                mustache = ' '.join('=' * int(child.name[1:]))
-                print(f'\n {mustache} {child.get_text()} {mustache} \n', file=out)
+            if headerp.match(child.name) or child.name == 'p':
+                self.print_sentences(child, child.get_text(), out)
             elif listp.match(child.name):
                 self.convert_list(child, out)
             elif child.name == 'section':
                 self.convert_section(child, out)
-            elif child.name == 'p':
-                print(f' {child.get_text()} ', file=out)
             else:
                 raise ValueError(f'Unexpected tag {child.name} in section')
+
+    def convert_li(self, li: Tag, out: StringIO, level: int, index: int):
+        """
+        Converts a list item to text. The text is written to _out_.
+
+        :param lst: the ``<li>`` tag.
+        :param out: the :class:`StringIO` that collects the output.
+        :param level: unused.
+        :param index: the position of the list item within the list. Needed
+                      for ordered lists; ``0`` for unordered lists.
+        """
+        for child in li:
+            # There should be only one
+            if isinstance(child, NavigableString):
+                # Need bullets / numbers
+                if self.bullet:
+                    bullet = f'{index}. ' if index else self.bullet
+                else:
+                    bullet = ''
+                self.print_sentences(li, bullet + child, out)
+            elif listp.match(child.name):
+                self.convert_list(child, out, level + 1)
+            else:
+                raise ValueError(f'Unexpected tag {child.name} in list item')
+
+    def print_sentences(self, id_tag: Tag, content: str, out: StringIO):
+        print(f'# newpar id = {id_tag.attrs.get("id")}', file=out)
+        for sentence in content.split('\n'):
+            # TODO: this is more complicated than it looks...
+            print(f'# text = {sentence}', file=out)
+            for token in sentence.split():
+                print(token, file=out)
+            print(file=out)
