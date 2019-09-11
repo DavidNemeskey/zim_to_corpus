@@ -9,6 +9,7 @@ This package provides a simple whitespace tokenizer, as well as wrappers for
 two proper, third-party tokenizers: spaCy and quntoken.
 """
 
+from abc import ABC, abstractmethod
 from collections import namedtuple
 import re
 import sys
@@ -19,8 +20,9 @@ from typing import List
 Sentence = namedtuple('Sentence', ['text', 'tokens'])
 
 
-class Tokenizer:
+class Tokenizer(ABC):
     """Base class for all tokenizers / sentence splitters."""
+    @abstractmethod
     def __call__(self, text: str) -> List[Sentence]:
         """
         Tokenizes _text_ and splits it into sentences.
@@ -28,8 +30,7 @@ class Tokenizer:
         :param text: a regular string.
         :returns: a list of sentences.
         """
-        raise NotImplementedError(
-            f'{self.__class__.__name__} must implement __call__')
+        ...
 
 
 class WhitespaceTokenizer(Tokenizer):
@@ -94,20 +95,25 @@ class SpacyTokenizer(Tokenizer):
 
 
 class QunTokenizer(Tokenizer):
+    """
+    Uses the quntoken library.
+
+    .. note::
+    The Python bindings for quntoken are not available via Pypi, but are
+    compiled with the rest of the library. So in order to use it, the path to
+    the library must be provided to this wrapper.
+    """
     # Regex to extract a sentence from quntoken's output
     senp = re.compile(r'<s>(.+?)</s>', re.S)
     # Regex to enumerate the XML tags from the sentence in quntoken's output
     tagp = re.compile(r'<(ws?|c)>(.+?)</\1>', re.S)
 
-    def __init__(self, path, *args, **kwargs):
+    def __init__(self, path):
         """
         Creates the tokenizer.
 
         :param path: path to the quntoken Python wrapper (``lib`` directory).
-        :param args: forwarded to :meth:`Tokenizer.__init__`.
-        :param kwargs: forwarded to :meth:`Tokenizer.__init__`.
         """
-        super().__init__(*args, **kwargs)
         try:
             sys.path.insert(1, path)
             from quntoken import QunToken
@@ -118,18 +124,13 @@ class QunTokenizer(Tokenizer):
                 'from https://github.com/DavidNemeskey/quntoken/tree/v1'
             )
 
-    def do_tokenize(self, text: str) -> List[List[str]]:
+    def __call__(self, text: str) -> List[Sentence]:
         tokenized = self.qt.tokenize(text)
-        if self.do_split:
-            sentences = []
-            for m in self.senp.finditer(tokenized):
-                sent = m.group(1)
-                sentences.append(self.get_tokens(sent) if self.do_token else
-                                 [self.get_text(sent)])
-            return sentences
-        else:
-            # No sentence splitting => tokenization was requested
-            return [self.get_tokens(tokenized)]
+        sentences = []
+        for m in self.senp.finditer(tokenized):
+            sent = m.group(1)
+            sentences.append(Sentence(self.get_text(sent), self.get_tokens(sent)))
+        return sentences
 
     def get_text(self, xml_text: str) -> str:
         """
