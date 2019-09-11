@@ -47,11 +47,20 @@ class Converter:
                 raise ValueError(f'Unexpected tag {child.name} in list')
 
 
-# TODO tokenization
 # TODO to corpus format
 # TODO to markdown
+# TODO to CoNNL-U
 # TODO section filtering
 class WT2Converter(Converter):
+    """
+    Converts from the "simple HTML" to WT-2 format.
+    
+    .. note::
+    The original WT-2 format contains tokenized text. To adhere to that,
+    the text in the HTML should be tokenized, but (preferably) not splitted at
+    sentence boundaries. The :mod:`zim_to_corpus.tokenization` module contains
+    the necessary machinery.
+    """ 
     def __init__(self, bullet: str = None, indent: int = 0):
         """
         Creates a new :class:`WT2Converter`.
@@ -121,6 +130,12 @@ class BERTConverter(Converter):
         Neither headers nor lists are preserved in the original BERT format.
         This class includes an option to keep them for experimental purposes.
 
+        .. note::
+        The BERT format requires that each sentence be on its own line.
+        The :mod:`zim_to_corpus.tokenization` module contains classes for
+        sentence boundary detection, which has to be done prior to calling
+        this converter.
+
         :param headers: whether headers should be included in the output.
         :param lists: whether lists should be included in the output.
         :param bullet: the character to use as bullets for lists. The default is
@@ -181,3 +196,8 @@ class BERTConverter(Converter):
                 self.convert_list(child, out, level + 1)
             else:
                 raise ValueError(f'Unexpected tag {child.name} in list item')
+
+
+class TsvConverter(Converter):
+    def __init__(self, headers=False, lists=False, bullet: str = None):
+        self.bullet = bullet
