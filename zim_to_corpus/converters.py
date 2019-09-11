@@ -7,11 +7,13 @@ other formats.
 """
 
 from io import StringIO
+import re
 
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
 from zim_to_corpus.html import headerp, listp
+from zim_to_corpus.transformations import remove_tags
 
 class Converter:
     """Base class for all converters."""
@@ -54,13 +56,13 @@ class Converter:
 class WT2Converter(Converter):
     """
     Converts from the "simple HTML" to WT-2 format.
-    
+
     .. note::
     The original WT-2 format contains tokenized text. To adhere to that,
     the text in the HTML should be tokenized, but (preferably) not splitted at
     sentence boundaries. The :mod:`zim_to_corpus.tokenization` module contains
     the necessary machinery.
-    """ 
+    """
     def __init__(self, bullet: str = None, indent: int = 0):
         """
         Creates a new :class:`WT2Converter`.
@@ -145,8 +147,28 @@ class BERTConverter(Converter):
         """
         self.headers = headers
         self.lists = lists
+
+        pattern = []
+        if not self.lists:
+            pattern.append('ol|ul|li')
+        if not self.headers:
+            pattern.append('h[0-9]+')
+        self.pattern = re.compile('|'.join(pattern)) if pattern else None
+
         self.bullet = f'{bullet} ' if bullet else ''
         self.indent = ' ' * indent
+
+    def __call__(self, html: BeautifulSoup) -> str:
+        """
+        Removes headers and/or lists if so instructed in the constructor.
+
+        .. warning::
+        Removal is done in-place, so ``html`` will not include the tags affected
+        after calling this method.
+        """
+        if self.pattern:
+            remove_tags(html, pattern=self.pattern)
+        return super().__call__(html)
 
     def convert_section(self, section: Tag, out: StringIO):
         """
@@ -157,11 +179,9 @@ class BERTConverter(Converter):
         """
         for child in section.children:
             if headerp.match(child.name):
-                if self.headers:
-                    print(child.get_text(), file=out)
+                print(child.get_text(), file=out)
             elif listp.match(child.name):
-                if self.lists:
-                    self.convert_list(child, out)
+                self.convert_list(child, out)
             elif child.name == 'section':
                 self.convert_section(child, out)
             elif child.name == 'p':
@@ -201,3 +221,17 @@ class BERTConverter(Converter):
 class TsvConverter(Converter):
     def __init__(self, headers=False, lists=False, bullet: str = None):
         self.bullet = bullet
+
+    def convert_section(self, section: Tag, out: StringIO):
+        for child in section.children:
+            if headerp.match(child.name):
+                mustache = ' '.join('=' * int(child.name[1:]))
+                print(f'\n {mustache} {child.get_text()} {mustache} \n', file=out)
+            elif listp.match(child.name):
+                self.convert_list(child, out)
+            elif child.name == 'section':
+                self.convert_section(child, out)
+            elif child.name == 'p':
+                print(f' {child.get_text()} ', file=out)
+            else:
+                raise ValueError(f'Unexpected tag {child.name} in section')

@@ -42,12 +42,9 @@ def visit_tree(tree: Union[BeautifulSoup, Tag],
             if string_callback:
                 string_callback(i, child)
         else:
-            print(f'tag {i} {child.name}', flush=True)
             if pre_tag_callback:
                 if not pre_tag_callback(i, child):
-                    print(f'continueuing', flush=True)
                     continue
-            print('visiting', flush=True)
             visit_tree(child, string_callback,
                        pre_tag_callback, post_tag_callback)
             if post_tag_callback:
