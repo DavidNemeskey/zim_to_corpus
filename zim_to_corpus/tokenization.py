@@ -9,45 +9,27 @@ This package provides a simple whitespace tokenizer, as well as wrappers for
 two proper, third-party tokenizers: spaCy and quntoken.
 """
 
+from collections import namedtuple
 import re
 import sys
 from typing import List
 
+
+# For holding both the raw and tokenized versions of a sentence
+Sentence = namedtuple('Sentence', ['text', 'tokens'])
+
+
 class Tokenizer:
     """Base class for all tokenizers / sentence splitters."""
-    def __init__(self, split_sentences=True, tokenize=True):
-        """
-        Creates a :class:`Tokenizer` that can tokenize, split sentences, or both.
-
-        :param split_sentences: whether to split sentences.
-        :param tokenize: whether to perform tokenization.
-        """
-        self.do_split = split_sentences
-        self.do_token = tokenize
-
-    def __call__(self, text: str) -> List[List[str]]:
+    def __call__(self, text: str) -> List[Sentence]:
         """
         Tokenizes _text_ and splits it into sentences.
 
         :param text: a regular string.
-        :returns: a list of sentences, each a list of tokens. If sentence
-                  splitting was not requested, the outer list will have only
-                  a single item; if tokenization was not requested, the inner
-                  lists.
-        """
-        if not (self.do_split or self.do_token):
-            return [[text]]
-        else:
-            return self.do_tokenize(text)
-
-    def do_tokenize(self, text: str) -> List[List[str]]:
-        """
-        Called by :meth:`tokenize`. Subclasses should override this method.
-        Implementations can assume that at least one of the two tasks was
-        actually requested (i.e. the tokenizer is not "dummy").
+        :returns: a list of sentences.
         """
         raise NotImplementedError(
-            f'{self.__class__.__name__} must implement do_tokenize')
+            f'{self.__class__.__name__} must implement __call__')
 
 
 class WhitespaceTokenizer(Tokenizer):
@@ -58,23 +40,17 @@ class WhitespaceTokenizer(Tokenizer):
     # Simplistic sentence end recognizer pattern
     endp = re.compile('[.!?]$')
 
-    def do_tokenize(self, text: str) -> List[List[str]]:
+    def __call__(self, text: str) -> List[Sentence]:
         tokens = text.split()
         sentences = []
-        if self.do_split:
-            sentence = []
-            for token in tokens:
-                sentence.append(token)
-                if self.endp.search(token):
-                    sentences.append(sentence)
-                    sentence = []
-            if sentence:
-                sentences.append(sentence)
-            if not self.do_token:
-                sentences = [[' '.join(sentence)] for sentence in sentences]
-        else:
-            # No sentence splitting => tokenization was requested
-            sentences.append(tokens)
+        sentence = []
+        for token in tokens:
+            sentence.append(token)
+            if self.endp.search(token):
+                sentences.append(Sentence(' '.join(sentence), sentence))
+                sentence = []
+        if sentence:
+            sentences.append(Sentence(' '.join(sentence), sentence))
         return sentences
 
 
@@ -109,16 +85,12 @@ class SpacyTokenizer(Tokenizer):
             raise OSError(f'Model {model} is not available. Install it by '
                           f'e.g. python -m spacy download {model}')
 
-    def do_tokenize(self, text: str) -> List[List[str]]:
+    def __call__(self, text: str) -> List[Sentence]:
         doc = self.nlp(text)
-        if self.do_split:
-            if self.do_token:
-                return [[str(token) for token in sent] for sent in doc.sents]
-            else:
-                return [[' '.join(map(str, sent))] for sent in doc.sents]
-        else:
-            # No sentence splitting => tokenization was requested
-            return [list(map(str, doc))]
+        return [
+            Sentence(sent.text_with_ws.strip(), [str(t) for t in sent])
+            for sent in doc.sents
+        ]
 
 
 class QunTokenizer(Tokenizer):
