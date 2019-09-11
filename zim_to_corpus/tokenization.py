@@ -70,3 +70,34 @@ class WhitespaceTokenizer(Tokenizer):
             # No sentence splitting => tokenization was requested
             sentences.append(tokens)
         return sentences
+
+
+class SpacyTokenizer(Tokenizer):
+    def __init__(self, model, use_parser=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        try:
+            import spacy
+
+            # Raises OSError if model is not available
+            self.nlp = spacy.load(model)
+            self.nlp.disable_pipes('tagger', 'ner')
+            if not use_parser:
+                self.nlp.add_pipe(self.nlp.create_pipe('sentencizer'))
+                self.nlp.disable_pipes('parser')
+        except ImportError:
+            raise ImportError('spaCy is not available. Install it by e.g. '
+                              'pip install -r requirements.txt')
+        except OSError:
+            raise OSError(f'Model {model} is not available. Install it by '
+                          f'e.g. python -m spacy download {model}')
+
+    def do_tokenize(self, text):
+        doc = self.nlp(text)
+        if self.do_split:
+            if self.do_token:
+                return [[str(token) for token in sent] for sent in doc.sents]
+            else:
+                return [[' '.join(map(str, sent))] for sent in doc.sents]
+        else:
+            # No sentence splitting => tokenization was requested
+            return [list(map(str, doc))]
