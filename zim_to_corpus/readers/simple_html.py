@@ -6,6 +6,8 @@
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString
 
+from zim_to_corpus.transformations import unprettify
+
 
 def parse(html_text: str) -> BeautifulSoup:
     """
@@ -14,8 +16,5 @@ def parse(html_text: str) -> BeautifulSoup:
     :class:`NavigableString`s are dropped.
     """
     bs = BeautifulSoup(html_text)
-    for tag in bs.find_all():
-        if isinstance(tag, NavigableString):
-            if not tag.strip():
-                tag.decompose()
+    unprettify(bs)
     return bs
