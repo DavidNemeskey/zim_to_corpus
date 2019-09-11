@@ -6,7 +6,7 @@ Functions that transform the HTML document content in one way or another.
 """
 
 import re
-from typing import Callable, Set, Union
+from typing import Callable, Pattern, Set, Union
 
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
@@ -96,14 +96,15 @@ def add_ids(bs: BeautifulSoup):
     visit_tree(bs, pre_tag_callback=add_id)
 
 
-def remove_tags(bs: BeautifulSoup, tags: Set[str]):
+def remove_tags(bs: BeautifulSoup, tags: Set[str] = None,
+                pattern: Pattern = None):
     """
     Removes all tags (and associated subtrees) from the tree whose ``name``
-    is in _tags_.
+    is in _tags_ or match _pattern_.
     """
     def pre_remove(_, tag):
         """Deletes tags with matching names."""
-        if tag.name in tags:
+        if (tags and tag.name in tags) or (pattern and pattern.match(tag.name)):
             tag.decompose()
             return False
         else:
