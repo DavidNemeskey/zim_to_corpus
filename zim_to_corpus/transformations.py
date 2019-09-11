@@ -67,15 +67,6 @@ def unprettify(bs: BeautifulSoup):
     visit_tree(bs, strip_string)
 
 
-def tokenize(bs: BeautifulSoup, tokenizer: Tokenizer):
-    """Tokenizes all text in the page."""
-    def do_tokenize(_, nav_string):
-        nav_string.replace_with('\n'.join(' '.join(tokens) for tokens
-                                          in tokenizer(nav_string)))
-
-    visit_tree(bs, do_tokenize)
-
-
 def add_ids(bs: BeautifulSoup):
     """Adds ids to all content tags."""
     valid_tags = re.compile('^section|ol|ul|li|p|h[0-9]+$')

@@ -8,13 +8,13 @@ other formats.
 
 from io import StringIO
 import re
-from typing import Dict
 
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
 from zim_to_corpus.html import headerp, listp
 from zim_to_corpus.transformations import remove_tags
+from zim_to_corpus.tokenization import Tokenizer
 
 class Converter:
     """Base class for all converters."""
@@ -33,16 +33,6 @@ class Converter:
         """The topmost conversion function."""
         for section in (c for c in html.find('body').children if isinstance(c, Tag)):
             self.convert_section(section, out)
-
-    @classmethod
-    def default_tokenization(cls) -> Dict[str, bool]:
-        """
-        Returns the default tokenization presets for the converter. These are
-        the parameters accepted by all
-        :class:`zim_to_corpus.tokenizerion.Tokenizer`s. The default of the
-        default is no tokenization or sentence splitting.
-        """
-        return {'split_sentences': False, 'tokenize': False}
 
     def convert_list(self, lst: Tag, out: StringIO, level: int = 0):
         """
@@ -66,7 +56,6 @@ class Converter:
 
 # TODO to corpus format
 # TODO to markdown
-# TODO to CoNNL-U
 # TODO section filtering
 class WT2Converter(Converter):
     """
@@ -78,27 +67,20 @@ class WT2Converter(Converter):
     sentence boundaries. The :mod:`zim_to_corpus.tokenization` module contains
     the necessary machinery.
     """
-    def __init__(self, bullet: str = None, indent: int = 0):
+    def __init__(self, tokenizer: Tokenizer,
+                 bullet: str = None, indent: int = 0):
         """
         Creates a new :class:`WT2Converter`.
 
+        :param tokenizer: used to tokenize the text.
         :param bullet: the character to use as bullets for lists. The default is
                        ``None``, which means no list bullets (or numbers)
                        will be used. This complies with the original WT-2 format.
         :param indent: the number of spaces to indent a list embedded in another.
         """
+        self.tokenizer = tokenizer
         self.bullet = f' {bullet}' if bullet else ''
         self.indent = ' ' * indent
-
-    @classmethod
-    def default_tokenization(cls) -> Dict[str, bool]:
-        """
-        Returns the default tokenization presets for the converter. These are
-        the parameters accepted by all
-        :class:`zim_to_corpus.tokenizerion.Tokenizer`s. The default of the
-        default is no tokenization or sentence splitting.
-        """
-        return {'split_sentences': False, 'tokenize': True}
 
     def convert_section(self, section: Tag, out: StringIO):
         """
@@ -110,13 +92,14 @@ class WT2Converter(Converter):
         for child in section.children:
             if headerp.match(child.name):
                 mustache = ' '.join('=' * int(child.name[1:]))
-                print(f'\n {mustache} {child.get_text()} {mustache} \n', file=out)
+                print(f'\n {mustache} {self.tokenizer.tokenize(child.get_text())} '
+                      f'{mustache} \n', file=out)
             elif listp.match(child.name):
                 self.convert_list(child, out)
             elif child.name == 'section':
                 self.convert_section(child, out)
             elif child.name == 'p':
-                print(f' {child.get_text()} ', file=out)
+                print(f' {self.tokenizer.tokenize(child.get_text())} ', file=out)
             else:
                 raise ValueError(f'Unexpected tag {child.name} in section')
 
@@ -140,7 +123,8 @@ class WT2Converter(Converter):
                     bullet = f' {index}.' if index else self.bullet
                 else:
                     bullet = ''
-                print(f'{self.indent * level}{bullet} {child}', file=out)
+                print(f'{self.indent * level}{bullet} '
+                      f'{self.tokenizer.tokenize(child)}', file=out)
             elif listp.match(child.name):
                 self.convert_list(child, out, level + 1)
             else:
@@ -148,7 +132,7 @@ class WT2Converter(Converter):
 
 
 class BERTConverter(Converter):
-    def __init__(self, headers=False, lists=False,
+    def __init__(self, tokenizer: Tokenizer, headers=False, lists=False,
                  bullet: str = None, indent: int = 0):
         """
         Creates a new :class:`BERTConverter`.
@@ -160,9 +144,9 @@ class BERTConverter(Converter):
         .. note::
         The BERT format requires that each sentence be on its own line.
         The :mod:`zim_to_corpus.tokenization` module contains classes for
-        sentence boundary detection, which has to be done prior to calling
-        this converter.
+        sentence boundary detection.
 
+        :param tokenizer: used for sentence boundary detection.
         :param headers: whether headers should be included in the output.
         :param lists: whether lists should be included in the output.
         :param bullet: the character to use as bullets for lists. The default is
@@ -170,6 +154,7 @@ class BERTConverter(Converter):
                        will be used. This complies with the original WT-2 format.
         :param indent: the number of spaces to indent a list embedded in another.
         """
+        self.tokenizer = tokenizer
         self.headers = headers
         self.lists = lists
 
@@ -182,16 +167,6 @@ class BERTConverter(Converter):
 
         self.bullet = f'{bullet} ' if bullet else ''
         self.indent = ' ' * indent
-
-    @classmethod
-    def default_tokenization(cls) -> Dict[str, bool]:
-        """
-        Returns the default tokenization presets for the converter. These are
-        the parameters accepted by all
-        :class:`zim_to_corpus.tokenizerion.Tokenizer`s. The default of the
-        default is no tokenization or sentence splitting.
-        """
-        return {'split_sentences': True, 'tokenize': False}
 
     def convert_document(self, html: BeautifulSoup, out: StringIO):
         """
@@ -214,15 +189,13 @@ class BERTConverter(Converter):
         """
         for child in section.children:
             if headerp.match(child.name):
-                print(child.get_text(), file=out)
+                print(self.tokenizer.ssplit(child.get_text()), file=out)
             elif listp.match(child.name):
                 self.convert_list(child, out)
             elif child.name == 'section':
                 self.convert_section(child, out)
             elif child.name == 'p':
-                for sentence in map(str.strip, child.get_text().split('\n')):
-                    if sentence:
-                        print(sentence, file=out)
+                print(self.tokenizer.ssplit(child.get_text()), file=out)
             else:
                 raise ValueError(f'Unexpected tag {child.name} in section')
 
@@ -246,7 +219,8 @@ class BERTConverter(Converter):
                     bullet = f'{index}. ' if index else self.bullet
                 else:
                     bullet = ''
-                print(f'{self.indent * level}{bullet}{child}', file=out)
+                print(f'{self.indent * level}{bullet}'
+                      f'{self.tokenizer.ssplit(child)}', file=out)
             elif listp.match(child.name):
                 self.convert_list(child, out, level + 1)
             else:
@@ -254,18 +228,13 @@ class BERTConverter(Converter):
 
 
 class TsvConverter(Converter):
-    def __init__(self, headers=False, lists=False, bullet: str = None):
+    def __init__(self, tokenizer: Tokenizer, headers=False, lists=False,
+                 bullet: str = None):
+        """
+        :param tokenizer: used for tokenization and sentence boundary detection.
+        """
+        self.tokenizer = tokenizer
         self.bullet = bullet
-
-    @classmethod
-    def default_tokenization(cls) -> Dict[str, bool]:
-        """
-        Returns the default tokenization presets for the converter. These are
-        the parameters accepted by all
-        :class:`zim_to_corpus.tokenizerion.Tokenizer`s. The default of the
-        default is no tokenization or sentence splitting.
-        """
-        return {'split_sentences': True, 'tokenize': True}
 
     def convert_document(self, html: BeautifulSoup, out: StringIO):
         """Prints the title of the document."""
@@ -309,9 +278,8 @@ class TsvConverter(Converter):
 
     def print_sentences(self, id_tag: Tag, content: str, out: StringIO):
         print(f'# newpar id = {id_tag.attrs.get("id")}', file=out)
-        for sentence in content.split('\n'):
-            # TODO: this is more complicated than it looks...
-            print(f'# text = {sentence}', file=out)
-            for token in sentence.split():
+        for sentence in self.tokenizer(content):
+            print(f'# text = {sentence.text}', file=out)
+            for token in sentence.tokens:
                 print(token, file=out)
             print(file=out)

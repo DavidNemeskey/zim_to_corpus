@@ -32,6 +32,28 @@ class Tokenizer(ABC):
         """
         ...
 
+    def tokenize(self, text: str, sentence_delim=' ') -> str:
+        """
+        Tokenizes _text_ into a single string.
+
+        :param text: the string to tokenize.
+        :param sentence_delim: the delimiter to put between two sentences.
+        :returns: a string in which the tokens of a sentence are separated by
+                  a space, and sentences are separated by _sentence_delim_.
+        """
+        return sentence_delim.join(' '.join(sent.tokens) for sent in self(text))
+
+    def ssplit(self, text: str, sentence_delim='\n') -> str:
+        """
+        Returns a string in which sentences are separated by _sentence_delim_.
+
+        :param text: the string to tokenize.
+        :param sentence_delim: the delimiter to put between two sentences.
+        :returns: a string in which the raw text sentences are separated by
+                  _sentence_delim_.
+        """
+        return sentence_delim.join(sent.text for sent in self(text))
+
 
 class WhitespaceTokenizer(Tokenizer):
     """
