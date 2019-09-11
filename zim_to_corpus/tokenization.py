@@ -25,7 +25,7 @@ class Tokenizer:
         self.do_split = split_sentences
         self.do_token = tokenize
 
-    def tokenize(self, text: str) -> List[List[str]]:
+    def __call__(self, text: str) -> List[List[str]]:
         """
         Tokenizes _text_ and splits it into sentences.
 
