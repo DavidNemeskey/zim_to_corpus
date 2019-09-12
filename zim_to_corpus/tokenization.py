@@ -55,6 +55,12 @@ class Tokenizer(ABC):
         return sentence_delim.join(sent.text for sent in self(text))
 
 
+class DummyTokenizer(Tokenizer):
+    """Does nothing."""
+    def __call__(self, text: str) -> List[Sentence]:
+        return [Sentence(text, text)]
+
+
 class WhitespaceTokenizer(Tokenizer):
     """
     A very simple tokenizer that splits tokens on whitespaces and sentences on
@@ -142,7 +148,7 @@ class QunTokenizer(Tokenizer):
             self.qt = QunToken('xml', 'token', False)
         except ImportError:
             raise ImportError(
-                'quntoken is not available. Download and install '
+                'quntoken is not available at {path}. Download and install '
                 'from https://github.com/DavidNemeskey/quntoken/tree/v1'
             )
 
