@@ -15,7 +15,6 @@ is not.
 
 from argparse import ArgumentParser
 import gzip
-from io import StringIO
 import json
 import logging
 from multiprocessing import Pool
@@ -24,7 +23,7 @@ import os.path as op
 
 from multiprocessing_logging import install_mp_handler
 
-from zim_to_corpus.wiki import enumerate_static_dump, ZimHtmlParser
+from zim_to_corpus.readers import parse_zim_wiki, enumerate_static_dump
 
 
 def parse_arguments():
@@ -59,7 +58,7 @@ def convert_to_json(input_file: str, output_file: str) -> int:
     try:
         with gzip.open(output_file, 'wt') as outf:
             for doc_no, html in enumerate(enumerate_static_dump(input_file), 1):
-                wp = ZimHtmlParser.parse(html)
+                wp = parse_zim_wiki(html)
                 print(json.dumps(wp.prettify()), file=outf)
     except EOFError as ee:
         logging.error(ee)
