@@ -30,6 +30,17 @@ def parse_json(value: str, arg=None) -> Any:
             raise ArgumentTypeError(f'"{value}" is not valid json')
 
 
+def prefix_name(cls: Type) -> str:
+    """
+    Returns the (lower cased) prefix before _superclass_'s name; e.g.
+    (``BERTConverter`` becomes ``bert``).
+
+    .. note::
+    Only takes the first superclass into account in case of multiple
+    inheritence.
+    """
+    return cls.__name__[:cls.__name__.find(cls.__bases__[0].__name__)].lower()
+
 def get_subclasses_of(superclass: str, module: str) -> Dict[str, Type]:
     """
     Enumerates all subclasses of _superclass_ in module _module_.
@@ -47,7 +58,7 @@ def get_subclasses_of(superclass: str, module: str) -> Dict[str, Type]:
     mod = importlib.import_module(module)
     scls = getattr(mod, superclass)
     return {
-        name[:name.find(superclass)].lower(): cls
+        prefix_name(cls): cls
         for name, cls in inspect.getmembers(mod, inspect.isclass)
         if name != superclass and issubclass(cls, scls)
     }

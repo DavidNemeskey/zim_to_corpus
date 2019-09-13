@@ -12,7 +12,7 @@ def readme():
         return f.read()
 
 setup(name='zim_to_corpus',
-      version='0.1.0',
+      version='0.2.0',
       description='Python package and scripts for reading and converting '
                   'the output of zim_to_dir (i.e. a corpus of Wikipedia '
                   'pages extracted from a .zim file) to various formats, '
@@ -53,6 +53,7 @@ setup(name='zim_to_corpus',
       # Install the scripts
       scripts=[
           'scripts/extract_zim_htmls.py',
+          'scripts/convert.py',
       ],
       install_requires=[
           'beautifulsoup4',
