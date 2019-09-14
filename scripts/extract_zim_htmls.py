@@ -55,7 +55,7 @@ def convert_to_json(input_file: str, output_file: str) -> int:
 
     :returns: the number of documents converted.
     """
-    logging.debug(f'Converting {input_file} to {output_file}...')
+    logging.info(f'Converting {input_file} to {output_file}...')
     doc_no = 0
     try:
         with gzip.open(output_file, 'wt') as outf:
@@ -73,8 +73,8 @@ def convert_to_json(input_file: str, output_file: str) -> int:
         logging.exception(f'Error in {input_file}, document {doc_no}.')
         raise
 
-    logging.debug(f'Converted {doc_no} documents from '
-                  f'{input_file} to {output_file}.')
+    logging.info(f'Converted {doc_no} documents from '
+                 f'{input_file} to {output_file}.')
     return doc_no
 
 
