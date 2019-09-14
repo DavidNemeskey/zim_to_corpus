@@ -77,35 +77,39 @@ def get_title(section: Tag) -> str:
 
 def statistics(input_file: str) -> Dict[str, Statistics]:
     section_stats = defaultdict(Statistics)
-    with gzip.open(input_file) as inf:
-        for doc_no, line in enumerate(inf, start=1):
-            html = parse_simple_html(json.loads(line))
-            sections = [c for c in html.body.children
-                        if isinstance(c, Tag)]
-            all_sections = set()
+    try:
+        with gzip.open(input_file) as inf:
+            for doc_no, line in enumerate(inf, start=1):
+                html = parse_simple_html(json.loads(line))
+                sections = [c for c in html.body.children
+                            if isinstance(c, Tag)]
+                all_sections = set()
 
-            for i, section in enumerate(sections, start=1):
-                try:
-                    title = get_title(section)
-                    all_sections.add(title)
-                    stats = section_stats[title]
-                    stats.count += 1
-                    stats.position += len(sections) - i
-                except ValueError:
-                    logging.error(f'No header for section {i} in '
-                                  f'{html.head.title.get_text()}')
+                for i, section in enumerate(sections, start=1):
+                    try:
+                        title = get_title(section)
+                        all_sections.add(title)
+                        stats = section_stats[title]
+                        stats.count += 1
+                        stats.position += len(sections) - i
+                    except ValueError:
+                        logging.error(f'No header for section {i} in '
+                                      f'{html.head.title.get_text()}')
 
-            remove_tags(html, {'ol', 'ul'})
-            nonempty_sections = set()
-            for section in (c for c in html.body.children if isinstance(c, Tag)):
-                try:
-                    title = get_title(section)
-                    nonempty_sections.add(title)
-                except ValueError:
-                    pass
+                remove_tags(html, {'ol', 'ul'})
+                nonempty_sections = set()
+                for section in (c for c in html.body.children if isinstance(c, Tag)):
+                    try:
+                        title = get_title(section)
+                        nonempty_sections.add(title)
+                    except ValueError:
+                        pass
 
-            for title in all_sections - nonempty_sections:
-                section_stats[title].empty += 1
+                for title in all_sections - nonempty_sections:
+                    section_stats[title].empty += 1
+    except:
+        logging.exception(f'Error in file {input_file}')
+        raise
 
     return section_stats
 
