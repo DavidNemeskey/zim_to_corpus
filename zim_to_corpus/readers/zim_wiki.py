@@ -72,6 +72,10 @@ class ZimHtmlParser:
         # And linkback texts
         for linkback in tree.find_all('span', {'class': 'mw-linkback-text'}):
             linkback.decompose()
+        # And note divs (For the XXX, see YYY). These only exist in the
+        # English Wikipedia, not in the Hungarian one
+        for div in tree.find_all('div', {'role': 'note'}):
+            div.decompose()
 
     def parse_section(self, old_section: Tag, new_parent: Tag):
         """
@@ -109,7 +113,7 @@ class ZimHtmlParser:
     def parse_div(self, old_div: Tag, new_section: Tag):
         """
         Sometimes there are divs between the sections and the lower-level tags,
-        such as ``p`` or lists. This method is basically the same as 
+        such as ``p`` or lists. This method is basically the same as
         :meth:`parse_section`, only it doesn't allow ``section``s inside of
         the ``div``.
         """
