@@ -81,6 +81,7 @@ def statistics(input_file: str) -> Dict[str, Statistics]:
         with gzip.open(input_file) as inf:
             for doc_no, line in enumerate(inf, start=1):
                 html = parse_simple_html(json.loads(line))
+                title = html.head.title.get_text()
                 sections = [c for c in html.body.children
                             if isinstance(c, Tag)]
                 all_sections = set()
@@ -108,7 +109,8 @@ def statistics(input_file: str) -> Dict[str, Statistics]:
                 for title in all_sections - nonempty_sections:
                     section_stats[title].empty += 1
     except:
-        logging.exception(f'Error in file {input_file}')
+        title = title or '<unk>'
+        logging.exception(f'Error in file {input_file} in page {title}')
         raise
 
     return section_stats
