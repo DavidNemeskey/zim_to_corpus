@@ -37,8 +37,7 @@ class ZimHtmlParser:
         <title></title>
         <meta charset="UTF-8">
     </head>
-    <body>
-    </body>
+    <body></body>
 </html>"""
 
     def __init__(self, html_text: str):
