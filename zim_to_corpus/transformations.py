@@ -11,6 +11,7 @@ from typing import Callable, Pattern, Set, Union
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
+from zim_to_corpus.html import headerp
 from zim_to_corpus.tokenization import Tokenizer
 
 
@@ -99,8 +100,14 @@ def remove_tags(bs: BeautifulSoup, tags: Set[str] = None,
             return True
 
     def post_remove(_, tag):
-        """Delete all tags that have become empty."""
+        """
+        Delete all tags that have become empty, as well as sections with
+        nothing but the header.
+        """
         if not tag.contents:
+            tag.decompose()
+        elif tag.name == 'section' and all(headerp.match(t.name)
+                                           for t in tag.contents):
             tag.decompose()
 
     visit_tree(bs, pre_tag_callback=pre_remove, post_tag_callback=post_remove)
