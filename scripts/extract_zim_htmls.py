@@ -24,6 +24,7 @@ import os.path as op
 from multiprocessing_logging import install_mp_handler
 
 from zim_to_corpus.readers import parse_zim_wiki, enumerate_static_dump
+from zim_to_corpus.transformations import remove_empty_tags
 
 
 def parse_arguments():
@@ -55,11 +56,16 @@ def convert_to_json(input_file: str, output_file: str) -> int:
     :returns: the number of documents converted.
     """
     logging.debug(f'Converting {input_file} to {output_file}...')
+    doc_no = 0
     try:
         with gzip.open(output_file, 'wt') as outf:
-            for doc_no, html in enumerate(enumerate_static_dump(input_file), 1):
+            for html in enumerate_static_dump(input_file):
                 wp = parse_zim_wiki(html)
-                print(json.dumps(wp.prettify()), file=outf)
+                # Only keep non-empty (e.g. not-all-image) pages
+                remove_empty_tags(wp)
+                if wp.find('body'):
+                    print(json.dumps(wp.prettify()), file=outf)
+                    doc_no += 1
     except EOFError as ee:
         logging.error(ee)
         return doc_no

@@ -111,3 +111,15 @@ def remove_tags(bs: BeautifulSoup, tags: Set[str] = None,
             tag.decompose()
 
     visit_tree(bs, pre_tag_callback=pre_remove, post_tag_callback=post_remove)
+
+
+def remove_empty_tags(bs: BeautifulSoup):
+    """Removes all empty tags from the tree."""
+    def post_remove(_, tag):
+        if not tag.contents:
+            tag.decompose()
+        elif tag.name == 'section' and all(headerp.match(t.name)
+                                           for t in tag.contents):
+            tag.decompose()
+
+    visit_tree(bs, post_tag_callback=post_remove)
