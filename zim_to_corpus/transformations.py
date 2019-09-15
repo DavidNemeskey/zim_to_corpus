@@ -12,7 +12,6 @@ from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
 from zim_to_corpus.html import headerp
-from zim_to_corpus.tokenization import Tokenizer
 
 
 def visit_tree(tree: Union[BeautifulSoup, Tag],
@@ -85,21 +84,26 @@ def add_ids(bs: BeautifulSoup):
     visit_tree(bs, pre_tag_callback=add_id)
 
 
-def remove_tags(bs: BeautifulSoup, tags: Set[str] = None,
-                pattern: Pattern = None):
+def remove_tags(bs: BeautifulSoup, predicate: Callable[[int, Tag], bool]):
     """
-    Removes all tags (and associated subtrees) from the tree whose ``name``
-    is in _tags_ or match _pattern_.
+    Removes all tags (and associated subtrees) from the tree for which
+    ``predicate`` is ``True``. All tags that become empty as a result will
+    be removed as well.
+
+    :param bs: the document.
+    :param predicate: a function that takes the index of the tag (within its
+                      parent's children list) and the tag itself and returns
+                      ``True`` if it has to be deleted and ``False`` otherwise.
     """
-    def pre_remove(_, tag):
+    def pre_remove(tag_idx: int, tag: Tag) -> bool:
         """Deletes tags with matching names."""
-        if (tags and tag.name in tags) or (pattern and pattern.match(tag.name)):
+        if predicate(tag_idx, tag):
             tag.decompose()
             return False
         else:
             return True
 
-    def post_remove(_, tag):
+    def post_remove(_, tag: Tag):
         """
         Delete all tags that have become empty, as well as sections with
         nothing but the header.
@@ -111,6 +115,34 @@ def remove_tags(bs: BeautifulSoup, tags: Set[str] = None,
             tag.decompose()
 
     visit_tree(bs, pre_tag_callback=pre_remove, post_tag_callback=post_remove)
+
+
+def in_set(tag_idx: int, tag: Tag, tags: Set[str]) -> bool:
+    """
+    A predicate for use in :func:`remove_tags`. Returns ``True`` if _tags_
+    contains _tag_'s ``name``.
+
+    .. note::
+    While this function can be imitated with
+    ``lambda _, tag: tag.name in {...}``, that would create the set on each
+    invocation, so using ``in_set`` with :func:`functools.partial` is probably
+    better in terms of performance.
+    """
+    return tag in tags
+
+
+def matches(tag_idx: int, tag: Tag, pattern: Pattern) -> bool:
+    """
+    A predicate for use in :func:`remove_tags`. Returns ``True`` if _tag_'s
+    ``name`` is matched by ``pattern``.
+
+    .. note::
+    While this function can be imitated with
+    ``lambda _, tag: tag.name in {...}``, that would create the set on each
+    invocation, so using ``in_set`` with :func:`functools.partial` is probably
+    better in terms of performance.
+    """
+    return pattern.match(tag.name)
 
 
 def remove_empty_tags(bs: BeautifulSoup):

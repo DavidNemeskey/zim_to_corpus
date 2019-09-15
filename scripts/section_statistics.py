@@ -9,6 +9,7 @@ them being empty aside from a list.
 from argparse import ArgumentParser
 from collections import defaultdict
 from dataclasses import dataclass
+from functools import partial
 import gzip
 import json
 import logging
@@ -21,7 +22,7 @@ from bs4.element import Tag
 from multiprocessing_logging import install_mp_handler
 
 from zim_to_corpus.readers import parse_simple_html
-from zim_to_corpus.transformations import remove_tags
+from zim_to_corpus.transformations import in_set, remove_tags
 from zim_to_corpus.html import headerp
 
 
@@ -98,7 +99,7 @@ def statistics(input_file: str) -> Dict[str, Statistics]:
                         logging.error(f'No header for section {i} in '
                                       f'{html.head.title.get_text()}')
 
-                remove_tags(html, {'ol', 'ul'})
+                remove_tags(html, partial(in_set, tags={'ol', 'ul'}))
                 nonempty_sections = set()
                 # In case the whole page consists solely of lists
                 if html.body:

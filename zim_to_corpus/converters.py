@@ -6,6 +6,7 @@ Functions that convert from the canonical "simple HTML" format to various
 other formats.
 """
 
+from functools import partial
 from io import StringIO
 import re
 
@@ -13,7 +14,7 @@ from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
 from zim_to_corpus.html import headerp, listp
-from zim_to_corpus.transformations import remove_tags
+from zim_to_corpus.transformations import matches, remove_tags
 from zim_to_corpus.tokenization import Tokenizer
 
 class Converter:
@@ -177,7 +178,7 @@ class BERTConverter(Converter):
         after calling this method.
         """
         if self.pattern:
-            remove_tags(html, pattern=self.pattern)
+            remove_tags(html, partial(matches, pattern=self.pattern))
         return super().convert_document(html, out)
 
     def convert_section(self, section: Tag, out: StringIO):
