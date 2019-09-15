@@ -76,6 +76,7 @@ def get_title(section: Tag) -> str:
 
 
 def statistics(input_file: str) -> Dict[str, Statistics]:
+    logging.info(f'Collecting statistics from {input_file}...')
     section_stats = defaultdict(Statistics)
     try:
         with gzip.open(input_file) as inf:
@@ -88,9 +89,9 @@ def statistics(input_file: str) -> Dict[str, Statistics]:
 
                 for i, section in enumerate(sections, start=1):
                     try:
-                        title = get_title(section)
-                        all_sections.add(title)
-                        stats = section_stats[title]
+                        header = get_title(section)
+                        all_sections.add(header)
+                        stats = section_stats[header]
                         stats.count += 1
                         stats.position += len(sections) - i
                     except ValueError:
@@ -99,20 +100,25 @@ def statistics(input_file: str) -> Dict[str, Statistics]:
 
                 remove_tags(html, {'ol', 'ul'})
                 nonempty_sections = set()
-                for section in (c for c in html.body.children if isinstance(c, Tag)):
-                    try:
-                        title = get_title(section)
-                        nonempty_sections.add(title)
-                    except ValueError:
-                        pass
+                # In case the whole page consists solely of lists
+                if html.body:
+                    for section in (c for c in html.body.children
+                                    if isinstance(c, Tag)):
+                        try:
+                            header = get_title(section)
+                            nonempty_sections.add(header)
+                        except ValueError:
+                            pass
 
-                for title in all_sections - nonempty_sections:
-                    section_stats[title].empty += 1
+                for header in all_sections - nonempty_sections:
+                    section_stats[header].empty += 1
     except:
         title = title or '<unk>'
         logging.exception(f'Error in file {input_file} in page {title}')
         raise
 
+    logging.info(f'Collected statistics about {len(section_stats)} '
+                 f'sections from {input_file}.')
     return section_stats
 
 
