@@ -23,7 +23,7 @@ from multiprocessing_logging import install_mp_handler
 
 from zim_to_corpus.readers import parse_simple_html
 from zim_to_corpus.transformations import in_set, remove_tags
-from zim_to_corpus.html import headerp
+from zim_to_corpus.html import get_title
 
 
 def parse_arguments():
@@ -65,15 +65,6 @@ class Statistics:
         pos_ratio = self.position / self.count if self.count else 0
         return (f'{self.count}\t{self.empty}\t{empty_ratio}\t'
                 f'{self.position}\t{pos_ratio}')
-
-
-def get_title(section: Tag) -> str:
-    """Returns the title of the section."""
-    for child in section.children:
-        if headerp.match(child.name):
-            return child.get_text()
-    else:
-        raise ValueError('No header in section')
 
 
 def statistics(input_file: str) -> Dict[str, Statistics]:
