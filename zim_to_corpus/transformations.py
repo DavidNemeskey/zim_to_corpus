@@ -11,7 +11,7 @@ from typing import Callable, Pattern, Set, Union
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
-from zim_to_corpus.html import headerp
+from zim_to_corpus.html import headerp, get_title
 
 
 def visit_tree(tree: Union[BeautifulSoup, Tag],
@@ -22,6 +22,8 @@ def visit_tree(tree: Union[BeautifulSoup, Tag],
     A visitor that runs through the tree in a recursive fashion and calls a
     callback function for each node. Traversal is right-to-left. Callbacks
     receive the index of the child within _tree_ and the child itself.
+
+    Callbacks can raise a :class:`StopIteration` exception to stop the visitor.
 
     :param tree: the document tree.
     :param string_callback: the callback function invoked for
@@ -84,6 +86,19 @@ def add_ids(bs: BeautifulSoup):
     visit_tree(bs, pre_tag_callback=add_id)
 
 
+def is_empty(tag: Tag) -> bool:
+    """
+    Tells whether _tag_ is "empty", i.e. it has no children, or, if it is a
+    section, it only has header children.
+    """
+    if not tag.contents:
+        return True
+    elif tag.name == 'section' and all(headerp.match(t.name)
+                                       for t in tag.contents):
+        return True
+    return False
+
+
 def remove_tags(bs: BeautifulSoup, predicate: Callable[[int, Tag], bool]):
     """
     Removes all tags (and associated subtrees) from the tree for which
@@ -108,10 +123,7 @@ def remove_tags(bs: BeautifulSoup, predicate: Callable[[int, Tag], bool]):
         Delete all tags that have become empty, as well as sections with
         nothing but the header.
         """
-        if not tag.contents:
-            tag.decompose()
-        elif tag.name == 'section' and all(headerp.match(t.name)
-                                           for t in tag.contents):
+        if is_empty(tag):
             tag.decompose()
 
     visit_tree(bs, pre_tag_callback=pre_remove, post_tag_callback=post_remove)
@@ -148,10 +160,26 @@ def matches(tag_idx: int, tag: Tag, pattern: Pattern) -> bool:
 def remove_empty_tags(bs: BeautifulSoup):
     """Removes all empty tags from the tree."""
     def post_remove(_, tag):
-        if not tag.contents:
+        if is_empty(tag):
             tag.decompose()
-        elif tag.name == 'section' and all(headerp.match(t.name)
-                                           for t in tag.contents):
-            tag.decompose()
+
+    visit_tree(bs, post_tag_callback=post_remove)
+
+
+def remove_sections(bs: BeautifulSoup, sections: Set[str]):
+    """
+    Removes consecutive sections from the end of the document whose names are
+    contained in _sections_. The functions stops when the first section not in
+    the set is met.
+    """
+    def post_remove(_, tag):
+        if tag.name == 'section':
+            title = get_title(tag)
+            if title in sections:
+                tag.decompose()
+            elif is_empty(tag):
+                tag.decompose()
+            else:
+                raise StopIteration(f'First section not in set: {title}')
 
     visit_tree(bs, post_tag_callback=post_remove)
