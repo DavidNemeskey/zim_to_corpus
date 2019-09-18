@@ -14,7 +14,7 @@ import logging
 from multiprocessing import Pool
 import os
 import os.path as op
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 from multiprocessing_logging import install_mp_handler
 
@@ -22,6 +22,7 @@ from zim_to_corpus.readers import parse_simple_html
 from zim_to_corpus.utils import (
     get_subclasses_of, instantiate, parse_json, prefix_name
 )
+from zim_to_corpus.transformations import remove_sections
 
 
 def parse_arguments():
@@ -60,6 +61,11 @@ def parse_arguments():
                                 'dictionary; see -F, above. Only subclasses of '
                                 'Tokenizer in the module tokenization are '
                                 'supported.')
+    parser.add_argument('--filter-sections', '-s',
+                        help='a file that lists sections (headers thereof) '
+                             'that should be removed from the pages before '
+                             'conversion. The file should list one title each '
+                             'line.')
     parser.add_argument('--processes', '-P', type=int, default=1,
                         help='number of worker processes to use (max is the '
                              'num of cores, default: 1)')
@@ -95,7 +101,8 @@ def parse_arguments():
 
 
 def convert(input_file: str, output_dir: str,
-            format_args: Dict[str, Any], tokenizer_args: Dict[str, Any]) -> int:
+            format_args: Dict[str, Any], tokenizer_args: Dict[str, Any],
+            sections_to_filter: Set[str]) -> int:
     """
     Parses all Wikipedia pages in _input_file_ and writes them to a file in
     _output_dir in the specified format. The file name of the new file will
@@ -117,6 +124,8 @@ def convert(input_file: str, output_dir: str,
     with gzip.open(input_file) as inf, gzip.open(output_file, 'wt') as outf:
         for doc_no, line in enumerate(inf, start=1):
             html = parse_simple_html(json.loads(line))
+            if sections_to_filter:
+                remove_sections(html, sections_to_filter)
             print(converter(html), file=outf)
     logging.debug(f'Converted {doc_no} documents from '
                   f'{input_file} to {output_file}.')
@@ -141,10 +150,17 @@ def main():
 
     logging.info(f'Scheduled {len(input_files)} files for conversion.')
 
+    if args.filter_sections:
+        with open(args.filter_section, 'rt') as inf:
+            sections_to_filter = set(line.strip() for line in inf)
+    else:
+        sections_to_filter = None
+
     with Pool(args.processes) as pool:
         f = partial(convert, output_dir=args.output_dir,
                     format_args=args.format_json,
-                    tokenizer_args=args.tokenizer_json)
+                    tokenizer_args=args.tokenizer_json,
+                    sections_to_filter=sections_to_filter)
         total_docs = sum(pool.imap_unordered(f, input_files))
 
     logging.info(f'Done. Converted a total of {total_docs} documents.')
