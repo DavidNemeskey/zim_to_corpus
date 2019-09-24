@@ -34,7 +34,7 @@ namespace fs = std::filesystem;
 
 /** Holds disambiguation patterns in titles for languages we support. */
 std::map<std::string, std::string> disambig = {
-    {"hu", "(egyértelműsítő lap)"}, {"en", "(disambiguation)"}
+    {"hu", "\\(egyértelműsítő lap\\)$"}, {"en", "\\(disambiguation\\)$"}
 };
 
 /** Keeps Options alive so that the returned ParseResult is valid. */
@@ -56,6 +56,11 @@ public:
                  cxxopts::value<std::string>())
                 ("l,language", "the two-letter language code of the Wikipedia dump",
                  cxxopts::value<std::string>()->default_value("hu"))
+                ("p,pattern", "when parsing anything other than Wikipedia, "
+                              "specify the regex pattern used to filter "
+                              "articles (e.g. '(cover)$' for Project "
+                              "Gutenberg).",
+                 cxxopts::value<std::string>()->default_value(""))
                 ("d,documents", "the number of articles saved into a "
                                 "single output file",
                  cxxopts::value<size_t>()->default_value("2500"))
@@ -86,10 +91,11 @@ public:
                 exit(1);
             }
             std::string language = args["language"].as<std::string>();
-            std::vector<std::string> v = {"aha", "baha"};
-            if (!disambig.count(language)) {
-                std::cout << "Language '" << language << "' is no supported. "
-                          << "Choose between 'en' and 'hu'." << std::endl;
+            if (args["pattern"].as<std::string>().size() == 0) {
+                if (!disambig.count(language)) {
+                    std::cout << "Language '" << language << "' is no supported. "
+                              << "Choose between 'en' and 'hu'." << std::endl;
+                }
             }
             return args;
         } catch (const cxxopts::OptionException& e) {
@@ -225,10 +231,11 @@ std::shared_ptr<spdlog::logger> create_logger(const std::string& name) {
  * \param zim_data the communication channel between the filter and writer
  *                 threads.
  * \param documents the number of documents in a single output file.
- * \param pattern to recognize disambiguation pages.
+ * \param pattern a regex to recognize pages to drop (for Wikipedia:
+ *                disambiguation pages).
  */
 void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
-                     const std::string& pattern) {
+                     const std::regex& pattern) {
     auto logger = create_logger("filter");
 
     size_t curr_num = 1;
@@ -246,8 +253,8 @@ void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
             logger->debug("Dropped redirect article {}.", title);
         } else if (it->isDeleted()) {
             logger->debug("Dropped deleted article {}.", title);
-        } else if (it->getTitle().find(pattern) != std::string::npos) {
-            logger->debug("Dropped disambiguation article {}.", title);
+        } else if (std::regex_search(title, pattern)) {
+            logger->debug("Dropped article {} for matching pattern.", title);
         } else {
             logger->debug("Keeping article {}.", title);
 
@@ -261,7 +268,7 @@ void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
 
     /* Write the rest. */
     if (!index_list.empty()) {
-        zim_data.push_job(std::make_pair(curr_num++, index_list), logger);
+        zim_data.push_job(std::make_pair(curr_num, index_list), logger);
     }
     zim_data.filtering_finished();
 
@@ -313,6 +320,30 @@ void write_articles_to_files(size_t id, std::string input_file, ZimData& zim_dat
     }
 }
 
+
+/**
+ * Creates the regex object used to filter pages. If \p pattern is specified,
+ * it is converted to a regex as-is; otherwise, the per-language Wikipedia
+ * patterns are used.
+ *
+ * \param pattern a valid regex pattern.
+ * \param language the Wikipedia language chosen by the user.
+ */
+std::regex create_pattern_regex(const std::string& custom_pattern,
+                                const std::string& language) {
+
+    std::string pattern = custom_pattern.size() > 0 ? custom_pattern
+                                                    : disambig[language];
+    spdlog::get("main")->debug("Pattern: ``{}``", pattern);
+    try {
+        return std::regex(pattern);
+    } catch (const std::regex_error& e) {
+        std::cerr << "Error parsing pattern: " << e.what() << std::endl;
+        exit(2);
+    }
+}
+
+
 int main(int argc, char* argv[]) {
     ArgumentParser parser(argv);
     auto args = parser.parse(argc, argv);
@@ -322,14 +353,16 @@ int main(int argc, char* argv[]) {
     logger->set_level(spdlog::level::from_str(args["log-level"].as<std::string>()));
     spdlog::register_logger(logger);
 
+    std::regex pattern_regex = create_pattern_regex(
+        args["pattern"].as<std::string>(), args["language"].as<std::string>());
+
     try {
         zim::File f(args["input-file"].as<std::string>());
         ZimData zim_data(args["threads"].as<size_t>());
         fs::create_directory(args["output-dir"].as<std::string>());
 
         std::thread filter_thread(filter_articles, std::ref(f), std::ref(zim_data),
-                                  args["documents"].as<size_t>(),
-                                  disambig[args["language"].as<std::string>()]);
+                                  args["documents"].as<size_t>(), pattern_regex);
         std::vector<std::thread> writer_threads;
         for (size_t i = 0; i < args["threads"].as<size_t>(); ++i) {
             writer_threads.emplace(writer_threads.end(),
