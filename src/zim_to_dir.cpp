@@ -312,6 +312,7 @@ void write_articles_to_files(size_t id, std::string input_file, ZimData& zim_dat
                            std::ios::out | std::ios::binary);
         for (auto index : fd.second) {
             auto article = f.getArticle(index);
+            logger->debug("Writing title {} to {}...", article.getTitle(), num);
             auto blob = article.getData();
             uint32_t size = htonl(static_cast<uint32_t>(blob.size()));
             out.write(reinterpret_cast<char*>(&size), sizeof(size));
