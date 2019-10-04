@@ -45,7 +45,7 @@ class Parser(Enum):
 
     def __init__(self, parse: Callable[[str], BeautifulSoup], canonical: str):
         """Two members: the parser function and the canonical name."""
-        self.parse = parser
+        self.parse = parse
         self.canonical = canonical
 
 
