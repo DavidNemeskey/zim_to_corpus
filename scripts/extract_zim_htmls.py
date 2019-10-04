@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-Extracts all Wikipedia HTMLs from the files output by zim_to_dir. Each
-Wikipedia page is filtered and converted into a minimal HTML, and then saved
-as a JSON string. In theory, this step could have been
+Extracts all (Wikipedia, Project Gutenberg) HTMLs from the files output by
+zim_to_dir. Each page is filtered and converted into a minimal HTML, and then
+saved as a JSON string. In theory, this step could have been
 skipped, and the script that creates the final format(s) could have operated on
 the output of zim_to_dir. However, filtering substantially decreases the size
 of, and access time to, the data. This factor becomes important, as there are
@@ -14,6 +14,7 @@ is not.
 """
 
 from argparse import ArgumentParser
+from functools import partial
 import gzip
 import json
 import logging
@@ -23,7 +24,7 @@ import os.path as op
 
 from multiprocessing_logging import install_mp_handler
 
-from zim_to_corpus.readers import parse_zim_wiki, enumerate_static_dump
+from zim_to_corpus.readers import enumerate_static_dump, get_parser, Parser
 from zim_to_corpus.transformations import remove_empty_tags
 
 
@@ -33,6 +34,10 @@ def parse_arguments():
                         help='the input directory.')
     parser.add_argument('--output-dir', '-o', required=True,
                         help='the output directory.')
+    parser.add_argument('--type', '-t', required=True,
+                        choices=[p.name.lower() for p in Parser],
+                        help='the type of content to extract: '
+                             'Wikipedia or Project Gutenberg.')
     parser.add_argument('--processes', '-P', type=int, default=1,
                         help='number of worker processes to use (max is the '
                              'num of cores, default: 1)')
@@ -48,11 +53,12 @@ def parse_arguments():
     return args
 
 
-def convert_to_json(input_file: str, output_file: str) -> int:
+def convert_to_json(input_file: str, output_file: str, data_type: str) -> int:
     """
-    Parses all Wikipedia pages in _input_file_ and writes them to in a simple
+    Parses all pages in _input_file_ and writes them to in a simple
     HTML format to _output_file_ as one JSON string per line.
 
+    :param data_type: the type of the content to parse (Wikipedia, ...)
     :returns: the number of documents converted.
     """
     logging.info(f'Converting {input_file} to {output_file}...')
@@ -60,11 +66,11 @@ def convert_to_json(input_file: str, output_file: str) -> int:
     try:
         with gzip.open(output_file, 'wt') as outf:
             for html in enumerate_static_dump(input_file):
-                wp = parse_zim_wiki(html)
+                doc = get_parser(data_type).func(html)
                 # Only keep non-empty (e.g. not-all-image) pages
-                remove_empty_tags(wp)
-                if wp.find('body'):
-                    print(json.dumps(wp.prettify()), file=outf)
+                remove_empty_tags(doc)
+                if doc.find('body'):
+                    print(json.dumps(doc.prettify()), file=outf)
                     doc_no += 1
     except EOFError as ee:
         logging.error(ee)
@@ -94,10 +100,12 @@ def main():
     in_out_files = [(op.join(args.input_dir, f), op.join(args.output_dir, f))
                     for f in os.listdir(args.input_dir)]
 
-    logging.info(f'Scheduled {len(in_out_files)} files for conversion.')
+    logging.info(f'Scheduled {len(in_out_files)} '
+                 f'{get_parser(args.type).canonical} files for conversion.')
 
     with Pool(args.processes) as pool:
-        total_docs = sum(pool.starmap(convert_to_json, in_out_files))
+        f = partial(convert_to_json, data_type=args.type)
+        total_docs = sum(pool.starmap(f, in_out_files))
 
     logging.info(f'Done. Converted a total of {total_docs} documents.')
 
