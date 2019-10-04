@@ -43,9 +43,9 @@ class Parser(Enum):
     WP = WIKIPEDIA
     PG = GUTENBERG
 
-    def __init__(self, parser: Callable[[str], BeautifulSoup], canonical: str):
+    def __init__(self, parse: Callable[[str], BeautifulSoup], canonical: str):
         """Two members: the parser function and the canonical name."""
-        self.parser = parser
+        self.parse = parser
         self.canonical = canonical
 
 

@@ -66,7 +66,7 @@ def convert_to_json(input_file: str, output_file: str, data_type: str) -> int:
     try:
         with gzip.open(output_file, 'wt') as outf:
             for html in enumerate_static_dump(input_file):
-                doc = get_parser(data_type).func(html)
+                doc = get_parser(data_type).parse(html)
                 # Only keep non-empty (e.g. not-all-image) pages
                 remove_empty_tags(doc)
                 if doc.find('body'):
