@@ -62,16 +62,16 @@ def convert_to_json(input_file: str, output_file: str, data_type: str) -> int:
     :returns: the number of documents converted.
     """
     logging.info(f'Converting {input_file} to {output_file}...')
-    doc_no = 0
+    parsed_docs = 0
     try:
         with gzip.open(output_file, 'wt') as outf:
-            for html in enumerate_static_dump(input_file):
+            for doc_no, html in enumerate(enumerate_static_dump(input_file), 1):
                 doc = get_parser(data_type).parse(html)
                 # Only keep non-empty (e.g. not-all-image) pages
                 remove_empty_tags(doc)
                 if doc.find('body'):
                     print(json.dumps(doc.prettify()), file=outf)
-                    doc_no += 1
+                    parsed_docs += 1
     except EOFError as ee:
         logging.error(ee)
         return doc_no
@@ -79,7 +79,7 @@ def convert_to_json(input_file: str, output_file: str, data_type: str) -> int:
         logging.exception(f'Error in {input_file}, document {doc_no}.')
         raise
 
-    logging.info(f'Converted {doc_no} documents from '
+    logging.info(f'Converted {parsed_docs} documents from '
                  f'{input_file} to {output_file}.')
     return doc_no
 
