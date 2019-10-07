@@ -131,5 +131,7 @@ def parse(html_text: str) -> BeautifulSoup:
     filter_tree(old_bs)
     tmp_bs = pre_parse(old_bs)
     new_bs = add_sections(tmp_bs)
-    new_bs.html.head.title.append(old_bs.find('title').get_text())
+    title = old_bs.find('title')
+    if title:
+        new_bs.html.head.title.append(title.get_text())
     return new_bs
