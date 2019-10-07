@@ -37,8 +37,8 @@ class ZimHtmlParser:
     <body></body>
 </html>"""
 
-    def __init__(self, html_text: str):
-        self.old_bs = BeautifulSoup(html_text)
+    def __init__(self, html_bytes: bytes):
+        self.old_bs = BeautifulSoup(html_bytes)
         self.new_bs = BeautifulSoup(self.html_template)
         self.title = self.old_bs.find('title').get_text()
 
@@ -228,6 +228,6 @@ class ZimHtmlParser:
                 yield child
 
 
-def parse(html_text: str) -> BeautifulSoup:
+def parse(html_bytes: bytes) -> BeautifulSoup:
     """Convenience method for ``ZimHtmlParser(html_text).simplify()``."""
-    return ZimHtmlParser(html_text).simplify()
+    return ZimHtmlParser(html_bytes).simplify()

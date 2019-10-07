@@ -14,7 +14,7 @@ from .zim_gutenberg import parse as parse_gutenberg
 from .zim_wiki import parse as parse_zim_wiki
 
 
-def enumerate_static_dump(static_dump_file: str) -> Generator[str, None, None]:
+def enumerate_static_dump(static_dump_file: str) -> Generator[bytes, None, None]:
     """
     Reads the specified static HTML dump file (the output of
     :command:`zim_to_dir`) and enumerates all pages therein.
@@ -32,8 +32,8 @@ def enumerate_static_dump(static_dump_file: str) -> Generator[str, None, None]:
             if len(html_raw) != size:
                 raise EOFError(f'{static_dump_file} ended abruptly '
                                f'after {doc_no} documents.')
-            html = html_raw.decode('utf-8')
-            yield html
+            # Unfortunately pages are not necessarily in UTF-8
+            yield html_raw
 
 
 class Parser(Enum):

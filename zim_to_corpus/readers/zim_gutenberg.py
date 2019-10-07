@@ -124,10 +124,10 @@ def add_sections(old_bs: BeautifulSoup):
     return new_bs
 
 
-def parse(html_text: str) -> BeautifulSoup:
+def parse(html_bytes: bytes) -> BeautifulSoup:
     """Parses a whole book."""
     # Let's start with the main content
-    old_bs = BeautifulSoup(html_text)
+    old_bs = BeautifulSoup(html_bytes)
     filter_tree(old_bs)
     tmp_bs = pre_parse(old_bs)
     new_bs = add_sections(tmp_bs)
