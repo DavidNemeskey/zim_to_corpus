@@ -152,7 +152,7 @@ def main():
     logging.info(f'Scheduled {len(input_files)} files for conversion.')
 
     if args.filter_sections:
-        with open(args.filter_section, 'rt') as inf:
+        with open(args.filter_sections, 'rt') as inf:
             sections_to_filter = set(line.strip() for line in inf)
     else:
         sections_to_filter = None
