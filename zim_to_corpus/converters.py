@@ -24,7 +24,8 @@ class Converter:
         Converts _html_ to text in a specific format.
 
         :param html: the minimal HTML representation of a Wikipedia page.
-        :returns: the converted text.
+        :returns: the converted text, which might be empty, if the original
+                  document was empty as well.
         """
         out = StringIO()
         self.convert_document(html, out)
@@ -32,8 +33,10 @@ class Converter:
 
     def convert_document(self, html: BeautifulSoup, out: StringIO):
         """The topmost conversion function."""
-        for section in (c for c in html.find('body').children if isinstance(c, Tag)):
-            self.convert_section(section, out)
+        body = html.find('body')
+        if body:
+            for section in (c for c in body.children if isinstance(c, Tag)):
+                self.convert_section(section, out)
 
     def convert_list(self, lst: Tag, out: StringIO, level: int = 0):
         """
