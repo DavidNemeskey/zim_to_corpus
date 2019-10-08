@@ -14,6 +14,25 @@ from bs4.element import NavigableString, Tag
 from zim_to_corpus.html import headerp, get_title
 
 
+class StopVisitor(Exception):
+    pass
+
+
+def stoppable(func: Callable):
+    """
+    A decorator that makes _func_ safely stoppable with the :class:`StopVisitor`
+    exception ("safely" as in wrapped in a ``try``-``except`` block).
+    """
+    def wrapper():
+        try:
+            return func()
+        except StopVisitor:
+            pass
+
+    return wrapper
+
+
+@stoppable
 def visit_tree(tree: Union[BeautifulSoup, Tag],
                string_callback: Callable[[int, str], None] = None,
                pre_tag_callback: Callable[[int, Tag], bool] = None,
@@ -23,7 +42,7 @@ def visit_tree(tree: Union[BeautifulSoup, Tag],
     callback function for each node. Traversal is right-to-left. Callbacks
     receive the index of the child within _tree_ and the child itself.
 
-    Callbacks can raise a :class:`StopIteration` exception to stop the visitor.
+    Callbacks can raise a :class:`StopVisitor` exception to stop the visitor.
 
     :param tree: the document tree.
     :param string_callback: the callback function invoked for
@@ -180,6 +199,6 @@ def remove_sections(bs: BeautifulSoup, sections: Set[str]):
             elif is_empty(tag):
                 tag.decompose()
             else:
-                raise StopIteration(f'First section not in set: {title}')
+                raise StopVisitor(f'First section not in set: {title}')
 
     visit_tree(bs, post_tag_callback=post_remove)
