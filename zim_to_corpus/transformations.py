@@ -195,7 +195,10 @@ def remove_sections(bs: BeautifulSoup, sections: Set[str]):
     """
     def post_remove(_, tag):
         if tag.name == 'section':
-            title = get_title(tag)
+            try:
+                title = get_title(tag)
+            except ValueError:
+                title = None
             if title in sections:
                 tag.decompose()
             elif is_empty(tag):
