@@ -72,6 +72,10 @@ def convert_to_json(input_file: str, output_file: str, data_type: str) -> int:
                 if doc.find('body'):
                     print(json.dumps(doc.prettify()), file=outf)
                     parsed_docs += 1
+                else:
+                    title_tag = doc.find('title')
+                    title = title_tag.get_text() if title_tag else '<no title>'
+                    logging.info(f'No body in document {doc_no}: {title}')
     except EOFError as ee:
         logging.error(ee)
         return doc_no
