@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-Converts Wikipedia pages in the "simple HTML" format (i.e. the output of
-convert.py) to various other formats (WT-2, BERT, CoNLL-U tsv, etc.)
+Converts documents (Wikipedia pages, Project Gutenberg books, etc.) in the
+"simple HTML" format (i.e. the output of convert.py) to various other formats
+(WT-2, BERT, CoNLL-U tsv, etc.)
 """
 
 from argparse import ArgumentParser
@@ -104,7 +105,7 @@ def convert(input_file: str, output_dir: str,
             format_args: Dict[str, Any], tokenizer_args: Dict[str, Any],
             sections_to_filter: Set[str]) -> int:
     """
-    Parses all Wikipedia pages in _input_file_ and writes them to a file in
+    Parses all documents in _input_file_ and writes them to a file in
     _output_dir in the specified format. The file name of the new file will
     be the same as _input_file_, with the exception of the extension, which
     will reflect the output format.
