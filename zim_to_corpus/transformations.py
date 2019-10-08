@@ -5,6 +5,7 @@
 Functions that transform the HTML document content in one way or another.
 """
 
+from functools import wraps
 import re
 from typing import Callable, Pattern, Set, Union
 
@@ -23,9 +24,10 @@ def stoppable(func: Callable):
     A decorator that makes _func_ safely stoppable with the :class:`StopVisitor`
     exception ("safely" as in wrapped in a ``try``-``except`` block).
     """
-    def wrapper():
+    @wraps(func)
+    def wrapper(*args, **kwargs):
         try:
-            return func()
+            return func(*args, **kwargs)
         except StopVisitor:
             pass
 
