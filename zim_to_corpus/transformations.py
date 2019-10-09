@@ -12,7 +12,7 @@ from typing import Callable, Pattern, Set, Union
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
-from zim_to_corpus.html import headerp, get_title
+from zim_to_corpus.html import headerp, get_section_title
 
 
 class StopVisitor(Exception):
@@ -196,7 +196,7 @@ def remove_sections(bs: BeautifulSoup, sections: Set[str]):
     def post_remove(_, tag):
         if tag.name == 'section':
             try:
-                title = get_title(tag)
+                title = get_section_title(tag)
             except ValueError:
                 title = None
             if title in sections:

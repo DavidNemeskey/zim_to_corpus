@@ -15,13 +15,19 @@ headerp = re.compile('[hH][0-9]+')
 listp = re.compile('[ou]l')
 
 
-def get_title(section: Tag) -> str:
-    """Returns the title of the section."""
+def get_section_title(section: Tag) -> str:
+    """Returns the title (first header) of the section."""
     for child in section.children:
         if headerp.match(child.name):
             return child.get_text()
     else:
         raise ValueError('No header in section')
+
+
+def get_html_title(bs: BeautifulSoup) -> str:
+    """Returns the title of an HTML page."""
+    title = bs.find('title')
+    return title.get_text() if title else None
 
 
 def sections_backwards(tree: Union[BeautifulSoup, Tag]) -> Generator[Tag, None, None]:

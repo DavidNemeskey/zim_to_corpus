@@ -23,7 +23,7 @@ from multiprocessing_logging import install_mp_handler
 
 from zim_to_corpus.readers import parse_simple_html
 from zim_to_corpus.transformations import in_set, remove_tags
-from zim_to_corpus.html import get_title
+from zim_to_corpus.html import get_section_title
 
 
 def parse_arguments():
@@ -81,7 +81,7 @@ def statistics(input_file: str) -> Dict[str, Statistics]:
 
                 for i, section in enumerate(sections, start=1):
                     try:
-                        header = get_title(section)
+                        header = get_section_title(section)
                         all_sections.add(header)
                         stats = section_stats[header]
                         stats.count += 1
@@ -97,7 +97,7 @@ def statistics(input_file: str) -> Dict[str, Statistics]:
                     for section in (c for c in html.body.children
                                     if isinstance(c, Tag)):
                         try:
-                            header = get_title(section)
+                            header = get_section_title(section)
                             nonempty_sections.add(header)
                         except ValueError:
                             pass

@@ -15,10 +15,12 @@ import logging
 from multiprocessing import Pool
 import os
 import os.path as op
-from typing import Any, Dict, Set
+import re
+from typing import Any, Dict, Pattern, Set
 
 from multiprocessing_logging import install_mp_handler
 
+from zim_to_corpus.html import get_html_title
 from zim_to_corpus.readers import parse_simple_html
 from zim_to_corpus.utils import (
     get_subclasses_of, instantiate, parse_json, prefix_name
@@ -67,6 +69,11 @@ def parse_arguments():
                              'that should be removed from the pages before '
                              'conversion. The file should list one title each '
                              'line.')
+    parser.add_argument('--filter-documents', '-d',
+                        help='a file that lists regular expression patterns '
+                             'for titles of documents to skip. Some documents '
+                             'might turn out to be useless, contain content '
+                             'that breaks the tokenizer, etc.')
     parser.add_argument('--processes', '-P', type=int, default=1,
                         help='number of worker processes to use (max is the '
                              'num of cores, default: 1)')
@@ -102,8 +109,10 @@ def parse_arguments():
 
 
 def convert(input_file: str, output_dir: str,
-            format_args: Dict[str, Any], tokenizer_args: Dict[str, Any],
-            sections_to_filter: Set[str]) -> int:
+            format_args: Dict[str, Any],
+            tokenizer_args: Dict[str, Any],
+            sections_to_filter: Set[str],
+            documents_to_filter: Set[Pattern]) -> int:
     """
     Parses all documents in _input_file_ and writes them to a file in
     _output_dir in the specified format. The file name of the new file will
@@ -127,16 +136,35 @@ def convert(input_file: str, output_dir: str,
             html = None
             try:
                 html = parse_simple_html(json.loads(line))
+                title = get_html_title(html)
+                if title and any(p.match(title) for p in documents_to_filter):
+                    logging.debug(f'Skipping document {title}...')
+                    continue
                 if sections_to_filter:
                     remove_sections(html, sections_to_filter)
                 print(converter(html), file=outf)
             except:
-                html_text = f'in {html.find("title")} ' if html else ''
+                html_text = f'in {title} ' if html and title else ''
                 logging.exception(f'Something happened {html_text} in file '
                                   f'{input_file}, line {doc_no}.')
     logging.info(f'Converted {doc_no} documents from '
                  f'{input_file} to {output_file}.')
     return doc_no
+
+
+def file_to_set(file_name: str) -> Set[str]:
+    """
+    Loads a file to a set.
+
+    :returns: the lines of the file in a ``set``, an empty ``set`` if
+              _file_name_ is ``None``.
+    """
+    if file_name:
+        with open(file_name, 'rt') as inf:
+            set_from_file = set(line.strip() for line in inf)
+    else:
+        set_from_file = set()
+    return set_from_file
 
 
 def main():
@@ -157,17 +185,16 @@ def main():
 
     logging.info(f'Scheduled {len(input_files)} files for conversion.')
 
-    if args.filter_sections:
-        with open(args.filter_sections, 'rt') as inf:
-            sections_to_filter = set(line.strip() for line in inf)
-    else:
-        sections_to_filter = None
+    sections_to_filter = file_to_set(args.filter_sections)
+    documents_to_filter = {re.compile(pattern) for pattern in
+                           file_to_set(args.filter_documents)}
 
     with Pool(args.processes) as pool:
         f = partial(convert, output_dir=args.output_dir,
                     format_args=args.format_json,
                     tokenizer_args=args.tokenizer_json,
-                    sections_to_filter=sections_to_filter)
+                    sections_to_filter=sections_to_filter,
+                    documents_to_filter=documents_to_filter)
         total_docs = sum(pool.imap_unordered(f, input_files))
         pool.close()
         pool.join()
