@@ -188,8 +188,8 @@ def main():
     sections_to_filter = file_to_set(args.filter_sections)
     documents_to_filter = {re.compile(pattern) for pattern in
                            file_to_set(args.filter_documents)}
-    logging.info('Filtering {len(sections_to_filter)} sections.')
-    logging.info('Filtering {len(documents_to_filter)} document patterns.')
+    logging.info(f'Filtering {len(sections_to_filter)} sections.')
+    logging.info(f'Filtering {len(documents_to_filter)} document patterns.')
 
     with Pool(args.processes) as pool:
         f = partial(convert, output_dir=args.output_dir,
