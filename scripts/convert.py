@@ -121,15 +121,21 @@ def convert(input_file: str, output_dir: str,
                                         prefix_name(converter.__class__))
     )
 
-    logging.debug(f'Converting {input_file} to {output_file}...')
+    logging.info(f'Converting {input_file} to {output_file}...')
     with gzip.open(input_file) as inf, gzip.open(output_file, 'wt') as outf:
         for doc_no, line in enumerate(inf, start=1):
-            html = parse_simple_html(json.loads(line))
-            if sections_to_filter:
-                remove_sections(html, sections_to_filter)
-            print(converter(html), file=outf)
-    logging.debug(f'Converted {doc_no} documents from '
-                  f'{input_file} to {output_file}.')
+            html = None
+            try:
+                html = parse_simple_html(json.loads(line))
+                if sections_to_filter:
+                    remove_sections(html, sections_to_filter)
+                print(converter(html), file=outf)
+            except:
+                html_text = f'in {html.find("title")} ' if html else ''
+                logging.exception(f'Something happened {html_text} in file '
+                                  f'{input_file}, line {doc_no}.')
+    logging.info(f'Converted {doc_no} documents from '
+                 f'{input_file} to {output_file}.')
     return doc_no
 
 
@@ -163,6 +169,8 @@ def main():
                     tokenizer_args=args.tokenizer_json,
                     sections_to_filter=sections_to_filter)
         total_docs = sum(pool.imap_unordered(f, input_files))
+        pool.close()
+        pool.join()
 
     logging.info(f'Done. Converted a total of {total_docs} documents.')
 
