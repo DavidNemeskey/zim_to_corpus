@@ -7,6 +7,7 @@ The two basic tokenizers + the common infrastructure.
 
 from abc import ABC, abstractmethod
 from collections import namedtuple
+import re
 from typing import List
 
 
