@@ -9,4 +9,9 @@ This package provides a simple whitespace tokenizer, as well as wrappers for
 two proper, third-party tokenizers: spaCy and quntoken.
 """
 
-from .core import DummyTokenizer, Sentence, Tokenizer, WhitespaceTokenizer  # noqa
+from .core import DummyTokenizer, Sentence, Tokenizer, WhitespaceTokenizer
+from .qun import QunTokenizer
+from .spacy import SpacyTokenizer
+
+__all__ = [DummyTokenizer, Sentence, Tokenizer, WhitespaceTokenizer,
+           QunTokenizer, SpacyTokenizer]
