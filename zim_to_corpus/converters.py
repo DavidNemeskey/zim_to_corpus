@@ -29,7 +29,8 @@ class Converter:
         """
         out = StringIO()
         self.convert_document(html, out)
-        return out.getvalue()
+        doc_text = out.getvalue()
+        return doc_text if not doc_text.isspace() else ''
 
     def convert_document(self, html: BeautifulSoup, out: StringIO):
         """The topmost conversion function."""
@@ -182,7 +183,8 @@ class BERTConverter(Converter):
         """
         if self.pattern:
             remove_tags(html, partial(matches, pattern=self.pattern))
-        return super().convert_document(html, out)
+        super().convert_document(html, out)
+        print(file=out)
 
     def convert_section(self, section: Tag, out: StringIO):
         """
