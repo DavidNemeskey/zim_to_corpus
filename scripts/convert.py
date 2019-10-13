@@ -16,11 +16,12 @@ from multiprocessing import Pool
 import os
 import os.path as op
 import re
-from typing import Any, Dict, Pattern, Set
+from typing import Any, Dict, List, Pattern, Set
 
+from bs4 import BeautifulSoup
 from multiprocessing_logging import install_mp_handler
 
-from zim_to_corpus.html import get_html_title
+from zim_to_corpus.html import get_html_title, get_section_title, html_template
 from zim_to_corpus.readers import parse_simple_html
 from zim_to_corpus.utils import (
     get_subclasses_of, instantiate, parse_json, prefix_name
@@ -37,6 +38,13 @@ def parse_arguments():
                         help='the input directory.')
     parser.add_argument('--output-dir', '-o', required=True,
                         help='the output directory.')
+    parser.add_argument('--unit', '-u', default='doc',
+                        choices=['doc', 'document', 'section'],
+                        help='the unit that should be converted to a single '
+                             'output document. Depends on the data set; for '
+                             'Wikipedia, document is the natural choice; for '
+                             'Project Gutenberg books, section might be more '
+                             'appropriate.')
     form_group = parser.add_mutually_exclusive_group(required=True)
     form_group.add_argument('--format', '-f', choices=sorted(converters.keys()),
                             help='the format to convert to.')
@@ -108,7 +116,22 @@ def parse_arguments():
     return args
 
 
-def convert(input_file: str, output_dir: str,
+def sections_to_docs(html: BeautifulSoup) -> List[BeautifulSoup]:
+    """Converts a single HTML document to a list of per-section documents."""
+    ret = []
+    for section_id, section in enumerate(html.find_all('section'), 1):
+        bs = BeautifulSoup(html_template)
+        try:
+            ret.append(bs)
+            bs.html.body.append(section)
+            bs.html.head.title.append(get_section_title(section))
+        except ValueError:
+            logging.debug(f'No section title for section {section_id} '
+                          f'in {get_html_title(html)}')
+    return ret
+
+
+def convert(input_file: str, output_dir: str, section_as_doc: bool,
             format_args: Dict[str, Any],
             tokenizer_args: Dict[str, Any],
             sections_to_filter: Set[str],
@@ -142,7 +165,11 @@ def convert(input_file: str, output_dir: str,
                     continue
                 if sections_to_filter:
                     remove_sections(html, sections_to_filter)
-                print(converter(html), file=outf)
+                if section_as_doc:
+                    for section_doc in sections_to_docs(html):
+                        print(converter(section_doc), file=outf, end='')
+                else:
+                    print(converter(html), file=outf, end='')
             except:
                 html_text = f'in {title} ' if html and title else ''
                 logging.exception(f'Something happened {html_text} in file '
@@ -193,6 +220,7 @@ def main():
 
     with Pool(args.processes) as pool:
         f = partial(convert, output_dir=args.output_dir,
+                    section_as_doc=args.unit == 'section',
                     format_args=args.format_json,
                     tokenizer_args=args.tokenizer_json,
                     sections_to_filter=sections_to_filter,
