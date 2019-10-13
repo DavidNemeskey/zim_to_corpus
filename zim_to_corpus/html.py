@@ -14,6 +14,15 @@ headerp = re.compile('[hH][0-9]+')
 # Pattern for recognizing lists
 listp = re.compile('[ou]l')
 
+# Template for the simplified html used for normalized documents
+html_template = """<html>
+    <head>
+        <title></title>
+        <meta charset="UTF-8">
+    </head>
+    <body></body>
+</html>"""
+
 
 def get_section_title(section: Tag) -> str:
     """Returns the title (first header) of the section."""

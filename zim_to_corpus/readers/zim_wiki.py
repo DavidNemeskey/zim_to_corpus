@@ -9,7 +9,7 @@ from typing import Generator, Union
 from bs4 import BeautifulSoup
 from bs4.element import Comment, NavigableString, Tag
 
-from zim_to_corpus.html import headerp, listp
+from zim_to_corpus.html import headerp, listp, html_template
 
 
 class ZimHtmlParser:
@@ -28,18 +28,9 @@ class ZimHtmlParser:
     on wikipedia.org. Also, even some of the .zim files have differently
     structured HTMLs; however, the main Wikipedia dumps (_all_) should work.
     """
-    # Template for the output (simplified) html
-    html_template = """<html>
-    <head>
-        <title></title>
-        <meta charset="UTF-8">
-    </head>
-    <body></body>
-</html>"""
-
     def __init__(self, html_bytes: bytes):
         self.old_bs = BeautifulSoup(html_bytes)
-        self.new_bs = BeautifulSoup(self.html_template)
+        self.new_bs = BeautifulSoup(html_template)
         self.title = self.old_bs.find('title').get_text()
 
     def simplify(self) -> BeautifulSoup:

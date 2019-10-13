@@ -20,17 +20,7 @@ import re
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
-from zim_to_corpus.html import headerp, listp
-
-
-# Template for the output (simplified) html
-html_template = """<html>
-    <head>
-        <title></title>
-        <meta charset="UTF-8">
-    </head>
-    <body></body>
-</html>"""
+from zim_to_corpus.html import headerp, listp, html_template
 
 
 def filter_tree(tree: BeautifulSoup):
