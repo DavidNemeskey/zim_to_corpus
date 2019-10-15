@@ -12,7 +12,7 @@ from .core import Sentence, Tokenizer
 # Tokens that should no be split
 special_cases = {
     'en': ['a.k.a.', '!Kora', '!Kung', '!Oka', '!PAUS3', '!T.O.O.H.!', '!Women',
-           '!Wowow!', '!Hero!', '!HERO', '!Arriba!', '!Action']
+           '!Wowow!', '!Hero', '!HERO', '!Arriba!', '!Action']
 }
 
 
