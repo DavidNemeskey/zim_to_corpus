@@ -23,6 +23,9 @@ html_template = """<html>
     <body></body>
 </html>"""
 
+# Default "empty document"
+empty_doc = BeautifulSoup('<html></html>')
+
 
 def get_section_title(section: Tag) -> str:
     """Returns the title (first header) of the section."""

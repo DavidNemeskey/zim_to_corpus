@@ -20,7 +20,8 @@ import re
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
-from zim_to_corpus.html import headerp, listp, html_template
+from zim_to_corpus.html import empty_doc, headerp, listp, html_template
+from zim_to_corpus.transformations import remove_empty_tags
 
 
 def filter_tree(tree: BeautifulSoup):
@@ -110,18 +111,21 @@ def add_sections(old_bs: BeautifulSoup):
     if section.contents:
         new_body.append(section)
 
+    remove_empty_tags(new_bs)
     return new_bs
 
 
-def parse(html_bytes: bytes, keep_poems: bool = False,
+def parse(html_bytes: bytes, keep_poems: bool = False, max_loss: float = 0.9,
           *args, **kwargs) -> BeautifulSoup:
     """Parses a whole book."""
     # Let's start with the main content
     old_bs = BeautifulSoup(html_bytes)
+    old_len = len(' '.join(old_bs.get_text().split()))
     filter_tree(old_bs)
     tmp_bs = pre_parse(old_bs, keep_poems)
     new_bs = add_sections(tmp_bs)
+    new_len = len(' '.join(new_bs.get_text().split()))
     title = old_bs.find('title')
     if title:
         new_bs.html.head.title.append(title.get_text())
-    return new_bs
+    return new_bs if new_len / old_len > (1 - max_loss) else empty_doc
