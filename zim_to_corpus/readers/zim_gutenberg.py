@@ -130,6 +130,6 @@ def parse(html_bytes: bytes, keep_poems: bool = False, max_loss: float = 0.9,
         new_bs.html.head.title.append(title.get_text())
     # Get rid of the document if it lost too much of its content (i.e. it was
     # a poem)
-    if new_len / old_len < (1 - max_loss):
+    if old_len == 0 or new_len / old_len < (1 - max_loss):
         new_bs.html.body.decompose()
     return new_bs
