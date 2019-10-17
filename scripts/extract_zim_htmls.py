@@ -21,11 +21,13 @@ import logging
 from multiprocessing import Pool
 import os
 import os.path as op
+from typing import Dict
 
 from multiprocessing_logging import install_mp_handler
 
 from zim_to_corpus.readers import enumerate_static_dump, get_parser, Parser
 from zim_to_corpus.transformations import remove_empty_tags
+from zim_to_corpus.utils import parse_json
 
 
 def parse_arguments():
@@ -38,6 +40,11 @@ def parse_arguments():
                         choices=[p.name.lower() for p in Parser],
                         help='the type of content to extract: '
                              'Wikipedia or Project Gutenberg.')
+    parser.add_argument('--type-parameters', '-p',
+                        type=partial(parse_json, arg='-p'),
+                        help='supply extra parameters to the parser type (-t) '
+                             'in a JSON dictionary. The only parameter thus '
+                             'far is keep_poems for the Gutenberg parser.')
     parser.add_argument('--processes', '-P', type=int, default=1,
                         help='number of worker processes to use (max is the '
                              'num of cores, default: 1)')
@@ -53,7 +60,8 @@ def parse_arguments():
     return args
 
 
-def convert_to_json(input_file: str, output_file: str, data_type: str) -> int:
+def convert_to_json(input_file: str, output_file: str, data_type: str,
+                    parser_args: Dict) -> int:
     """
     Parses all pages in _input_file_ and writes them to in a simple
     HTML format to _output_file_ as one JSON string per line.
@@ -66,7 +74,7 @@ def convert_to_json(input_file: str, output_file: str, data_type: str) -> int:
     try:
         with gzip.open(output_file, 'wt') as outf:
             for doc_no, html in enumerate(enumerate_static_dump(input_file), 1):
-                doc = get_parser(data_type).parse(html)
+                doc = get_parser(data_type).parse(html, **parser_args)
                 # Only keep non-empty (e.g. not-all-image) pages
                 remove_empty_tags(doc)
                 if doc.find('body'):
@@ -107,8 +115,10 @@ def main():
     logging.info(f'Scheduled {len(in_out_files)} '
                  f'{get_parser(args.type).canonical} files for conversion.')
 
+    parser_args = json.loads(args.type_parameters or '{}')
     with Pool(args.processes) as pool:
-        f = partial(convert_to_json, data_type=args.type)
+        f = partial(convert_to_json,
+                    data_type=args.type, parser_args=parser_args)
         total_docs = sum(pool.starmap(f, in_out_files))
 
     logging.info(f'Done. Converted a total of {total_docs} documents.')

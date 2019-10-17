@@ -32,7 +32,7 @@ def filter_tree(tree: BeautifulSoup):
     for table in tree.find_all('table'):
         table.decompose()
 
-def pre_parse(old_bs: BeautifulSoup) -> BeautifulSoup:
+def pre_parse(old_bs: BeautifulSoup, keep_poems: bool = False) -> BeautifulSoup:
     """
     Pre-parses the old html and adds headers, lists, paragraphs and poems
     to the new html.
@@ -61,23 +61,22 @@ def pre_parse(old_bs: BeautifulSoup) -> BeautifulSoup:
                 if new_tag.contents:
                     new_body.append(new_tag)
         else:  # div
-            if 'poem' not in tag.get('class', []):
-                continue
-            if tag.find('div', {'class': 'stanza'}):
-                # One p per stanza
-                for stanza in tag.find_all('div', {'class': 'stanza'}):
+            if 'poem' in tag.get('class', []) and keep_poems:
+                if tag.find('div', {'class': 'stanza'}):
+                    # One p per stanza
+                    for stanza in tag.find_all('div', {'class': 'stanza'}):
+                        new_p = tmp_bs.new_tag('p')
+                        for line in stanza.find_all('span'):
+                            new_p.append(line.get_text().strip() + '\n')
+                        if new_p.contents:
+                            new_body.append(new_p)
+                else:
+                    # Unstructured poem with lines as paragraphs
                     new_p = tmp_bs.new_tag('p')
-                    for line in stanza.find_all('span'):
-                        new_p.append(line.get_text().strip())
+                    for line in tag.find_all('p'):
+                        new_p.append(line.get_text().strip() + '\n')
                     if new_p.contents:
                         new_body.append(new_p)
-            else:
-                # Unstructured poem with lines as paragraphs
-                new_p = tmp_bs.new_tag('p')
-                for line in tag.find_all('p'):
-                    new_p.append(line.get_text().strip())
-                if new_p.contents:
-                    new_body.append(new_p)
     return tmp_bs
 
 
@@ -114,12 +113,13 @@ def add_sections(old_bs: BeautifulSoup):
     return new_bs
 
 
-def parse(html_bytes: bytes) -> BeautifulSoup:
+def parse(html_bytes: bytes, keep_poems: bool = False,
+          *args, **kwargs) -> BeautifulSoup:
     """Parses a whole book."""
     # Let's start with the main content
     old_bs = BeautifulSoup(html_bytes)
     filter_tree(old_bs)
-    tmp_bs = pre_parse(old_bs)
+    tmp_bs = pre_parse(old_bs, keep_poems)
     new_bs = add_sections(tmp_bs)
     title = old_bs.find('title')
     if title:
