@@ -161,7 +161,7 @@ def in_set(tag_idx: int, tag: Tag, tags: Set[str]) -> bool:
     invocation, so using ``in_set`` with :func:`functools.partial` is probably
     better in terms of performance.
     """
-    return tag in tags
+    return tag.name in tags
 
 
 def matches(tag_idx: int, tag: Tag, pattern: Pattern) -> bool:
