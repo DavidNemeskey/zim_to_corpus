@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
 from zim_to_corpus.html import headerp, listp
-from zim_to_corpus.transformations import matches, remove_tags
+from zim_to_corpus.transformations import add_ids, matches, remove_tags
 from zim_to_corpus.tokenization import Tokenizer
 
 class Converter:
@@ -245,6 +245,7 @@ class TsvConverter(Converter):
     def convert_document(self, html: BeautifulSoup, out: StringIO):
         """Prints the title of the document."""
         print(f'# newdoc id = {html.html.head.title.get_text()}', file=out)
+        add_ids(html)
         return super().convert_document(html, out)
 
     def convert_section(self, section: Tag, out: StringIO):
