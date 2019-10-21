@@ -23,6 +23,11 @@ def parse_arguments():
                              'more than once.')
     parser.add_argument('--output', '-o', required=True,
                         help='the output prefix of the model/vocabulary.')
+    parser.add_argument('--sample-ratio', '-s', type=float, default=1.0,
+                        help='what ratio of input lines to process. Note that '
+                             'sentencepiece reads all input lines into memory, '
+                             'so depending on the corpus size, the ratio '
+                             'should be lowered from the default 1.0.')
     parser.add_argument('--model', '-m', required=True,
                         choices=['bpe', 'unigram'],
                         help='the algorithm to run.')
@@ -47,7 +52,7 @@ def parse_arguments():
     return args
 
 
-def pipe_inputs_into_fifo(inputs, fifo):
+def pipe_inputs_into_fifo(inputs, fifo, sample_ratio):
     pipe_inputs = []
     for input in inputs:
         if os.path.isfile(input):
@@ -57,14 +62,16 @@ def pipe_inputs_into_fifo(inputs, fifo):
         else:
             logging.error('Input {input} is not a valid file or directory.')
     logging.debug(f'Piping process started with inputs {pipe_inputs}.')
-    os.system(f'zcat {" ".join(pipe_inputs)} > {fifo}')
+    os.system(f'zcat {" ".join(pipe_inputs)} | perl -ne '
+              f'"print if (rand() < {sample_ratio})" > {fifo}')
 
-def train(inputs, prefix, model, vocab_size, char_coverage):
+def train(inputs, prefix, sample_ratio, model, vocab_size, char_coverage):
     import sentencepiece as spm
 
     model_prefix = f'{prefix}_{model}_{vocab_size}_{char_coverage}'
     fifo_path = f'{model_prefix}.fifo'
-    proc = Process(target=pipe_inputs_into_fifo, args=[inputs, fifo_path])
+    proc = Process(target=pipe_inputs_into_fifo,
+                   args=[inputs, fifo_path, sample_ratio])
     try:
         logging.info(f'Creating FIFO {fifo_path}...')
         os.mkfifo(fifo_path)
@@ -104,8 +111,8 @@ def main():
     )
     install_mp_handler()
 
-    train(args.inputs, args.output, args.model, args.vocabulary_size,
-          args.character_coverage)
+    train(args.inputs, args.output, args.sample_ratio,
+          args.model, args.vocabulary_size, args.character_coverage)
 
 
 if __name__ == '__main__':
