@@ -114,7 +114,6 @@ def parse_arguments():
     except KeyError:
         parser.error(f'Valid tokenizers are {{{", ".join(tokenizers.keys())}}}')
 
-    print(args)
     return args
 
 
