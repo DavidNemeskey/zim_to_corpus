@@ -9,6 +9,7 @@ other formats.
 from functools import partial
 from io import StringIO
 import re
+import unicodedata
 
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
@@ -19,6 +20,23 @@ from zim_to_corpus.tokenization import Tokenizer
 
 class Converter:
     """Base class for all converters."""
+    def __init__(self, lower: bool = False, norm_form: str = None):
+        """
+        :param lower: whether the text should be lower cased.
+        :param norm_form: the unicode normalization form.
+        """
+        self.lower = lower
+        self.norm_form = partial(
+            unicodedata.normalize, norm_form.upper()) if norm_form else None
+
+    def normalize(self, text):
+        """Normalizes / lowercases _text_."""
+        if self.lower:
+            text = text.lower()
+        if self.norm_form:
+            text = self.norm_form(text)
+        return text
+
     def __call__(self, html: BeautifulSoup) -> str:
         """
         Converts _html_ to text in a specific format.
@@ -29,7 +47,7 @@ class Converter:
         """
         out = StringIO()
         self.convert_document(html, out)
-        doc_text = out.getvalue()
+        doc_text = self.normalize(out.getvalue())
         return doc_text if not doc_text.isspace() else ''
 
     def header(self):
@@ -80,7 +98,7 @@ class WT2Converter(Converter):
     the necessary machinery.
     """
     def __init__(self, tokenizer: Tokenizer,
-                 bullet: str = None, indent: int = 0):
+                 bullet: str = None, indent: int = 0, *args, **kwargs):
         """
         Creates a new :class:`WT2Converter`.
 
@@ -90,6 +108,7 @@ class WT2Converter(Converter):
                        will be used. This complies with the original WT-2 format.
         :param indent: the number of spaces to indent a list embedded in another.
         """
+        super().__init__(*args, **kwargs)
         self.tokenizer = tokenizer
         self.bullet = f' {bullet}' if bullet else ''
         self.indent = ' ' * indent
@@ -145,7 +164,7 @@ class WT2Converter(Converter):
 
 class BERTConverter(Converter):
     def __init__(self, tokenizer: Tokenizer, headers=False, lists=False,
-                 bullet: str = None, indent: int = 0):
+                 bullet: str = None, indent: int = 0, *args, **kwargs):
         """
         Creates a new :class:`BERTConverter`.
 
@@ -166,6 +185,7 @@ class BERTConverter(Converter):
                        will be used. This complies with the original WT-2 format.
         :param indent: the number of spaces to indent a list embedded in another.
         """
+        super().__init__(*args, **kwargs)
         self.tokenizer = tokenizer
         self.headers = headers
         self.lists = lists
@@ -242,10 +262,11 @@ class BERTConverter(Converter):
 
 class TsvConverter(Converter):
     def __init__(self, tokenizer: Tokenizer, headers=False, lists=False,
-                 bullet: str = None):
+                 bullet: str = None, *args, **kwargs):
         """
         :param tokenizer: used for tokenization and sentence boundary detection.
         """
+        super().__init__(*args, **kwargs)
         self.tokenizer = tokenizer
         self.bullet = bullet
 

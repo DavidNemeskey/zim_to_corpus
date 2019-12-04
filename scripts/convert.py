@@ -45,8 +45,12 @@ def parse_arguments():
                              'Wikipedia, document is the natural choice; for '
                              'Project Gutenberg books, section might be more '
                              'appropriate.')
-    parser.add_argument('--uncased', '-c', action='store_true',
+    parser.add_argument('--lower', '-l', action='store_true',
                         help='lowercase the text.')
+    parser.add_argument('--normalize', '-n',
+                        choices=['nfc', 'nfd', 'nfkc', 'nfkd'],
+                        help='normalize the text to a unicode normalization '
+                             'form.')
     form_group = parser.add_mutually_exclusive_group(required=True)
     form_group.add_argument('--format', '-f', choices=sorted(converters.keys()),
                             help='the format to convert to.')
@@ -132,20 +136,13 @@ def sections_to_docs(html: BeautifulSoup) -> List[BeautifulSoup]:
     return ret
 
 
-def uncase(text, uncased: bool = False):
-    """
-    "Uncases" (lowercases) _text_ if _uncased_ is ``True``; otherwise, keeps
-    it unchanged.
-    """
-    return text.lower() if uncased else text
-
-
 def convert(input_file: str, output_dir: str, section_as_doc: bool,
             format_args: Dict[str, Any],
             tokenizer_args: Dict[str, Any],
             sections_to_filter: Set[str],
             documents_to_filter: Set[Pattern],
-            uncased: bool = False) -> int:
+            lower: bool = False,
+            norm_form: str = None) -> int:
     """
     Parses all documents in _input_file_ and writes them to a file in
     _output_dir in the specified format. The file name of the new file will
@@ -154,7 +151,6 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
 
     :returns: the number of documents converted.
     """
-    transform = partial(uncase, uncased=uncased)
     tokenizer = instantiate(**tokenizer_args)
     format_args.setdefault('args', []).insert(0, tokenizer)
     converter = instantiate(**format_args)
@@ -181,10 +177,9 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
                     remove_sections(html, sections_to_filter)
                 if section_as_doc:
                     for section_doc in sections_to_docs(html):
-                        print(transform(converter(section_doc)),
-                              file=outf, end='')
+                        print(converter(section_doc), file=outf, end='')
                 else:
-                    print(transform(converter(html)), file=outf, end='')
+                    print(converter(html), file=outf, end='')
             except:
                 html_text = f'in {title} ' if html and title else ''
                 logging.exception(f'Something happened {html_text} in file '
@@ -240,7 +235,7 @@ def main():
                     tokenizer_args=args.tokenizer_json,
                     sections_to_filter=sections_to_filter,
                     documents_to_filter=documents_to_filter,
-                    uncased=args.uncased)
+                    lower=args.lower, norm_form=args.normalize)
         total_docs = sum(pool.imap_unordered(f, input_files))
         pool.close()
         pool.join()
