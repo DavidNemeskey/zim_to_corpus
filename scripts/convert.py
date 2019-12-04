@@ -166,6 +166,9 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
 
     logging.info(f'Converting {input_file} to {output_file}...')
     with gzip.open(input_file) as inf, gzip.open(output_file, 'wt') as outf:
+        header = converter.header()
+        if header:
+            print(header, file=outf)
         for doc_no, line in enumerate(inf, start=1):
             html = None
             try:

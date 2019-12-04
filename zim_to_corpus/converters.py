@@ -32,6 +32,13 @@ class Converter:
         doc_text = out.getvalue()
         return doc_text if not doc_text.isspace() else ''
 
+    def header(self):
+        """
+        Text to print at the beginning of a file of converted documents. Noop
+        for most converters.
+        """
+        pass
+
     def convert_document(self, html: BeautifulSoup, out: StringIO):
         """The topmost conversion function."""
         body = html.find('body')
@@ -241,6 +248,10 @@ class TsvConverter(Converter):
         """
         self.tokenizer = tokenizer
         self.bullet = bullet
+
+    def header(self):
+        """Returns the name of the surface form column, according to CoNLL-U."""
+        return 'form'
 
     def convert_document(self, html: BeautifulSoup, out: StringIO):
         """Prints the title of the document."""
