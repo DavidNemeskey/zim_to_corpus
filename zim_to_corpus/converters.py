@@ -19,6 +19,27 @@ from zim_to_corpus.tokenization import Tokenizer
 
 class Converter:
     """Base class for all converters."""
+    def __init__(self, headers=True, lists=True):
+        """
+        Creates a new :class:`Converter`.
+
+        Some formats, such as BERT, do not preserve headers nor lists. This
+        class allows the user to decide, not only for BERT, but other formats
+        as well.
+
+        :param headers: whether headers should be included in the output.
+        :param lists: whether lists should be included in the output.
+        """
+        self.headers = headers
+        self.lists = lists
+
+        pattern = []
+        if not self.lists:
+            pattern.append('ol|ul|li')
+        if not self.headers:
+            pattern.append('h[0-9]+')
+        self.pattern = re.compile('|'.join(pattern)) if pattern else None
+
     def __call__(self, html: BeautifulSoup) -> str:
         """
         Converts _html_ to text in a specific format.
@@ -40,7 +61,12 @@ class Converter:
         pass
 
     def convert_document(self, html: BeautifulSoup, out: StringIO):
-        """The topmost conversion function."""
+        """
+        The topmost conversion function. This is also the place where lists
+        and headers are removed, if requested.
+        """
+        if self.pattern:
+            remove_tags(html, partial(matches, pattern=self.pattern))
         body = html.find('body')
         if body:
             for section in (c for c in body.children if isinstance(c, Tag)):
@@ -90,6 +116,7 @@ class WT2Converter(Converter):
                        will be used. This complies with the original WT-2 format.
         :param indent: the number of spaces to indent a list embedded in another.
         """
+        super().__init__()
         self.tokenizer = tokenizer
         self.bullet = f' {bullet}' if bullet else ''
         self.indent = ' ' * indent
@@ -159,23 +186,13 @@ class BERTConverter(Converter):
         sentence boundary detection.
 
         :param tokenizer: used for sentence boundary detection.
-        :param headers: whether headers should be included in the output.
-        :param lists: whether lists should be included in the output.
         :param bullet: the character to use as bullets for lists. The default is
                        ``None``, which means no list bullets (or numbers)
                        will be used. This complies with the original WT-2 format.
         :param indent: the number of spaces to indent a list embedded in another.
         """
+        super().__init__(headers, lists)
         self.tokenizer = tokenizer
-        self.headers = headers
-        self.lists = lists
-
-        pattern = []
-        if not self.lists:
-            pattern.append('ol|ul|li')
-        if not self.headers:
-            pattern.append('h[0-9]+')
-        self.pattern = re.compile('|'.join(pattern)) if pattern else None
 
         self.bullet = f'{bullet} ' if bullet else ''
         self.indent = ' ' * indent
@@ -188,8 +205,6 @@ class BERTConverter(Converter):
         Removal is done in-place, so ``html`` will not include the tags affected
         after calling this method.
         """
-        if self.pattern:
-            remove_tags(html, partial(matches, pattern=self.pattern))
         super().convert_document(html, out)
         print(file=out)
 
@@ -243,11 +258,12 @@ class BERTConverter(Converter):
 class TsvConverter(Converter):
     WS = re.compile(r'\s')
 
-    def __init__(self, tokenizer: Tokenizer, headers=False, lists=False,
+    def __init__(self, tokenizer: Tokenizer, headers=True, lists=True,
                  bullet: str = None):
         """
         :param tokenizer: used for tokenization and sentence boundary detection.
         """
+        super().__init__(headers, lists)
         self.tokenizer = tokenizer
         self.bullet = bullet
 
