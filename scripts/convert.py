@@ -218,6 +218,8 @@ def main():
     )
     install_mp_handler()
 
+    logging.info(f'Script: {__file__}, args: {args}')
+
     os.nice(20)
     if not os.path.isdir(args.output_dir):
         os.makedirs(args.output_dir)

@@ -241,6 +241,8 @@ class BERTConverter(Converter):
 
 
 class TsvConverter(Converter):
+    WS = re.compile(r'\s')
+
     def __init__(self, tokenizer: Tokenizer, headers=False, lists=False,
                  bullet: str = None):
         """
@@ -297,7 +299,7 @@ class TsvConverter(Converter):
     def print_sentences(self, id_tag: Tag, content: str, out: StringIO):
         print(f'# newpar id = {id_tag.attrs.get("id")}', file=out)
         for sentence in self.tokenizer(content):
-            print(f'# text = {sentence.text}', file=out)
+            print(f'# text = {self.WS.sub(" ", sentence.text)}', file=out)
             for token in sentence.tokens:
                 print(token, file=out)
             print(file=out)

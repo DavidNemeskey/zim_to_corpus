@@ -80,10 +80,16 @@ def train(inputs, prefix, sample_ratio, model, vocab_size, char_coverage):
         logging.debug('Process started.')
         st = time.time()
 
+        args = (f'--input={fifo_path} --model_prefix={model_prefix} '
+                f'--vocab_size={vocab_size} --model_type={model} '
+                f'--character_coverage={char_coverage} '
+                f'--normalization_rule_name=identity')
+        logging.info(f'args {args}')
         spm.SentencePieceTrainer.Train(
             f'--input={fifo_path} --model_prefix={model_prefix} '
             f'--vocab_size={vocab_size} --model_type={model} '
-            f'--character_coverage={char_coverage}'
+            f'--character_coverage={char_coverage} '
+            f'--normalization_rule_name=identity'
         )
         r = resource.getrusage(resource.RUSAGE_SELF)
         logging.info(f'Took {time.time() - st} seconds for {model} '
@@ -110,6 +116,8 @@ def main():
         format='%(asctime)s - %(process)s - %(levelname)s - %(message)s'
     )
     install_mp_handler()
+
+    logging.info(f'Script: {__file__}, args: {args}')
 
     train(args.inputs, args.output, args.sample_ratio,
           args.model, args.vocabulary_size, args.character_coverage)

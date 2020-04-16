@@ -6,6 +6,7 @@ Functions that transform the HTML document content in one way or another.
 """
 
 from functools import wraps
+import logging
 import re
 from typing import Callable, Pattern, Set, Union
 
@@ -200,10 +201,13 @@ def remove_sections(bs: BeautifulSoup, sections: Set[str]):
             except ValueError:
                 title = None
             if title in sections:
+                logging.debug(f'Removing title {title}...')
                 tag.decompose()
             elif is_empty(tag):
+                logging.debug(f'Removing empty {title}...')
                 tag.decompose()
             else:
+                logging.debug(f'Stopping at {title}!')
                 raise StopVisitor(f'First section not in set: {title}')
 
     visit_tree(bs, post_tag_callback=post_remove)

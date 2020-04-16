@@ -123,6 +123,8 @@ def main():
     )
     install_mp_handler()
 
+    logging.info(f'Script: {__file__}, args: {args}')
+
     input_files = [op.join(args.input_dir, f) for f in
                    os.listdir(args.input_dir)]
 
