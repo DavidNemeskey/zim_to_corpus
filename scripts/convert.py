@@ -15,11 +15,11 @@ import logging
 from multiprocessing import Pool
 import os
 import os.path as op
-import re
 from typing import Any, Dict, List, Pattern, Set
 
 from bs4 import BeautifulSoup
 from multiprocessing_logging import install_mp_handler
+import regex as re
 
 from zim_to_corpus.html import get_html_title, get_section_title, html_template
 from zim_to_corpus.readers import parse_simple_html
@@ -165,6 +165,8 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
     )
 
     logging.info(f'Converting {input_file} to {output_file}...')
+    # Deletes control characters from the HTML text
+    del_ctrl = re.compile(r'[\p{C}--\t\n]', re.V1)
     with gzip.open(input_file) as inf, gzip.open(output_file, 'wt') as outf:
         header = converter.header()
         if header:
@@ -172,7 +174,8 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
         for doc_no, line in enumerate(inf, start=1):
             html = None
             try:
-                html = parse_simple_html(json.loads(line))
+                raw_html = json.loads(line)
+                html = parse_simple_html(del_ctrl.sub('', raw_html))
                 title = get_html_title(html)
                 if title and any(p.match(title) for p in documents_to_filter):
                     logging.debug(f'Skipping document {title}...')
@@ -230,7 +233,7 @@ def main():
     logging.info(f'Scheduled {len(input_files)} files for conversion.')
 
     sections_to_filter = file_to_set(args.filter_sections)
-    documents_to_filter = {re.compile(pattern) for pattern in
+    documents_to_filter = {re.compile(pattern, re.V0) for pattern in
                            file_to_set(args.filter_documents)}
     logging.info(f'Filtering {len(sections_to_filter)} sections.')
     logging.info(f'Filtering {len(documents_to_filter)} document patterns.')
