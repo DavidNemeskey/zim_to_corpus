@@ -64,6 +64,11 @@ class ZimHtmlParser:
         # English Wikipedia, not in the Hungarian one
         for div in tree.find_all('div', {'role': 'note'}):
             div.decompose()
+        # And style elements, which are not limited to <HEAD>... however,
+        # these seem not to be present in the output of the latest version /
+        # the pinned lxml version
+        for sup in tree.find_all('style'):
+            sup.decompose()
 
     def parse_section(self, old_section: Tag, new_parent: Tag):
         """

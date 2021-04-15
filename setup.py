@@ -12,7 +12,7 @@ def readme():
         return f.read()
 
 setup(name='zim_to_corpus',
-      version='0.8.2',
+      version='0.8.3',
       description='Python package and scripts for reading and converting '
                   'the output of zim_to_dir (i.e. a corpus of Wikipedia '
                   'pages extracted from a .zim file) to various formats, '
@@ -60,7 +60,7 @@ setup(name='zim_to_corpus',
       ],
       install_requires=[
           'beautifulsoup4',
-          'lxml',
+          'lxml==4.6.3',
           'multiprocessing-logging',
           # A regex engine that supports Unicode character classes (\p{})
           'regex',
