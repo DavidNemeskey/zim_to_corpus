@@ -24,13 +24,18 @@ html_template = """<html>
 </html>"""
 
 
-def get_section_title(section: Tag) -> str:
-    """Returns the title (first header) of the section."""
+def get_section_title_tag(section: Tag) -> Tag:
+    """Returns the title (first header) tag of the section."""
     for child in section.children:
         if headerp.match(child.name):
-            return child.get_text().strip()
+            return child
     else:
         raise ValueError('No header in section')
+
+
+def get_section_title(section: Tag) -> str:
+    """Returns the title (first header) of the section."""
+    return get_section_title_tag(section).get_text().strip()
 
 
 def get_html_title(bs: BeautifulSoup) -> str:
