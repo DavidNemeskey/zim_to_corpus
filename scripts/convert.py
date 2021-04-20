@@ -26,7 +26,7 @@ from zim_to_corpus.readers import parse_simple_html
 from zim_to_corpus.utils import (
     get_subclasses_of, instantiate, parse_json, prefix_name
 )
-from zim_to_corpus.transformations import remove_sections
+from zim_to_corpus.transformations import remove_empty_tags, remove_sections
 
 
 def parse_arguments():
@@ -60,14 +60,14 @@ def parse_arguments():
                                  'Converter in the module converters are '
                                  'supported.')
     tok_group = parser.add_mutually_exclusive_group()
-    tok_group.add_argument('--tokenizer', '-t', default='dummy',
+    tok_group.add_argument('--tokenizer', '-t', default='whitespace',
                            help='the tokenizer to use for conversion. The '
                                 'format of this tag is <tokenizer>:<param>. '
                                 'The valid values for <tokenizer> are '
                                 f'{{{", ".join(tokenizers.keys())}}}. The '
                                 'parameter for qun(token) is the path to the '
                                 'library; for spacy the model name. The default'
-                                ' is the dummy tokenizer, which does nothing.')
+                                ' is the whitespace tokenizer.')
     tok_group.add_argument('--tokenizer-json', '-T',
                            type=partial(parse_json, arg='-T'),
                            help='instantiate the tokenizer via a JSON '
@@ -182,6 +182,11 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
                     continue
                 if sections_to_filter:
                     remove_sections(html, sections_to_filter)
+
+                # As a last step, let's get rid of the empty tags now
+                remove_empty_tags(html)
+
+                # We are done, let's print the document!
                 if section_as_doc:
                     for section_doc in sections_to_docs(html):
                         print(transform(converter(section_doc)),
