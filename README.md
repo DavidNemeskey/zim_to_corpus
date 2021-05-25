@@ -36,14 +36,15 @@ The program requires two libraries to work:
 
 - [`libzim`](https://github.com/openzim/libzim) (also called Zimlib) to process
   the files. Libzim can be installed from the repositories of Linux
-  distributions, or compiled from source;
+  distributions, or (preferably, see below) compiled from source;
 - `zlib`, for compression.
 
 Note that some of the files in the Kiwix archives (most importantly, the
 English WP dump) require a recent version of libzim. For instance, the
 `libzim0v5` version found in Ubuntu Xenial / Linux Mint 18 fails with
-"_error reading zim-file header_". Because of this, libzim version 4.0.0+ is
-recommended.
+"_error reading zim-file header_". Because of this, libzim version 6.3.0 is
+recommended (the API changed in 7.0, and `zim_to_dir` is not yet compatible
+with it).
 
 ### Troubleshooting
 
