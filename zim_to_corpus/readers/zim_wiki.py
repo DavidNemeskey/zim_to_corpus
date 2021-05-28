@@ -9,7 +9,7 @@ from typing import Generator, Union
 from bs4 import BeautifulSoup
 from bs4.element import Comment, NavigableString, Tag
 
-from zim_to_corpus.html import headerp, listp, html_template
+from zim_to_corpus.html import headerp, lip, listp, html_template
 
 
 class ZimHtmlParser:
@@ -30,6 +30,7 @@ class ZimHtmlParser:
     """
     def __init__(self, html_bytes: bytes):
         self.old_bs = BeautifulSoup(html_bytes)
+        logging.debug(f'old_bs BEGIN:\n{self.old_bs}\nold_bs END')
         self.new_bs = BeautifulSoup(html_template)
         self.title = self.old_bs.find('title').get_text()
 
@@ -40,16 +41,21 @@ class ZimHtmlParser:
         # Let's start with the main content
         old_body = self.old_bs.find('div', id='mw-content-text')
         self.filter_tree(old_body)
-        for child in old_body.children:
-            if child.name == 'section':
-                self.parse_section(child, self.new_bs.html.body)
+        self.parse_section(old_body, self.new_bs.html.body)
+        # for child in old_body.children:
+        #     logging.debug(f'child {child.name}')
+        #     if child.name == 'details':
+        #         logging.debug('parsing section...')
+        #         self.parse_section(child, self.new_bs.html.body)
 
         # Add the first (title) header, which is usually outside of mw-content-text
-        title = self.old_bs.find(id='titleHeading')
+        title = self.old_bs.find(id='title_0')
+        logging.debug(f'title {title}')
+        # Only add the title if we don't already have a h1
         if title and not self.new_bs.find('h1'):
             first_section = self.new_bs.find('section')
             if first_section:
-                self.add_tag(title.name, title.get_text(), first_section, 0)
+                self.add_tag('h1', title.get_text(), first_section, 0)
 
         return self.new_bs
 
@@ -85,16 +91,24 @@ class ZimHtmlParser:
                 logging.warning(f'NavigableString >{child}< in '
                                 f'{old_section.name} in {self.title}.')
                 # raise ValueError(f'NavigableString >{child}< in {old_section.name}')
-            elif child.name == 'section':
+            elif child.name == 'details':
+                logging.debug('parsing detail')
                 self.parse_section(child, new_section)
             elif child.name == 'p':
+                logging.debug('parsing p')
                 text = ' '.join(child.get_text().split())
                 if text:
                     self.add_tag('p', text, new_section)
             elif child.name == 'div':
+                logging.debug('parsing div')
                 self.parse_div(child, new_section)
-            elif headerp.match(child.name):
-                self.add_tag(child.name, child.get_text(), new_section)
+            elif child.name == 'summary' and 'section-heading' in child.get('class'):
+                logging.debug('summary!')
+                for gc in child.children:
+                    logging.debug(f'Section grandchild {gc.name}')
+                    if headerp.match(gc.name):
+                        logging.debug('HEADER!')
+                        self.add_tag(gc.name, gc.get_text(), new_section)
             elif listp.match(child.name):
                 self.parse_list(child, new_section)
 
@@ -121,7 +135,7 @@ class ZimHtmlParser:
                     self.add_tag('p', text, new_section)
             elif child.name == 'div':
                 self.parse_div(child, new_section)
-            elif child.name == 'section':
+            elif child.name == 'details':
                 logging.warning(f'section in div in {self.title}.')
             elif headerp.match(child.name):
                 self.add_tag(child.name, child.get_text(), new_section)
@@ -142,15 +156,14 @@ class ZimHtmlParser:
                 logging.warning(f'Unexpected navigablestring >{child}< in '
                                 f'{old_list.name} in {self.title}')
                 # raise ValueError(f'Unexpected navigablestring >{child}< in {old_list.name}')
-            elif child.name != 'li':
-                if child.name in ('span', 'div'):
-                    text = child.get_text()
-                    if text.strip():
-                        # Just warning, so that we don't break parsing
-                        logging.warning(f'Unexpected tag {child.name} '
-                                        f'>{text}< in {old_list.name}')
-            else:
+            elif lip.match(child.name):
                 self.parse_li(child, new_list)
+            elif child.name in ('span', 'div'):
+                text = child.get_text()
+                if text.strip():
+                    # Just warning, so that we don't break parsing
+                    logging.warning(f'Unexpected tag {child.name} '
+                                    f'>{text}< in {old_list.name}')
 
         # Only append non-empty lists
         if list(new_list.children):
@@ -164,7 +177,7 @@ class ZimHtmlParser:
         :param old_li: the `li` tag in the DOM of the original page.
         :param new_list: the list tag in simplified DOM.
         """
-        new_li = self.new_bs.new_tag('li')
+        new_li = self.new_bs.new_tag(old_li.name)
 
         content = []
         for child in self.filter_tags(old_li, False):

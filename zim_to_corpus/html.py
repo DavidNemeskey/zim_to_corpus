@@ -11,8 +11,9 @@ from bs4.element import Tag
 
 # Pattern for recognizing headers
 headerp = re.compile('[hH][0-9]+')
-# Pattern for recognizing lists
-listp = re.compile('[ou]l')
+# Patterns for recognizing lists
+listp = re.compile('[oud]l')
+lip = re.compile('li|d[dt]')
 
 # Template for the simplified html used for normalized documents
 html_template = """<html>
