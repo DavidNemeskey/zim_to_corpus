@@ -37,6 +37,20 @@ std::map<std::string, std::string> disambig = {
     {"hu", "\\(egyértelműsítő lap\\)$"}, {"en", "\\(disambiguation\\)$"}
 };
 
+/** A join function similar to what Python has. */
+template<class C>
+std::string join(const C& c) {
+    std::stringstream ss;
+    std::for_each(
+        std::begin(c), std::end(c),
+        [&ss, sep=""](auto e) mutable {
+            ss << sep << e;
+            sep = ", ";
+        }
+    );
+    return ss.str();
+}
+
 /** Keeps Options alive so that the returned ParseResult is valid. */
 class ArgumentParser {
 public:
@@ -247,6 +261,12 @@ void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
             logger->debug("Filtering document no {}...", it.getIndex());
         }
         std::string title = it->getTitle();
+        // Note: it.getIndex() exists, but it returns a different number
+        // (the actual index of the article in the file), which doesn't
+        // work with f.getArticle
+        auto index = it->getIndex();
+        logger->debug("Document {} ({}) == ({})", title, index,
+                      f.getArticle(index).getTitle());
         if (it->getNamespace() != 'A') {
             logger->debug("Dropped article {} not in namespace A.", title);
         } else if (it->isRedirect()) {
@@ -256,10 +276,11 @@ void filter_articles(zim::File& f, ZimData& zim_data, size_t documents,
         } else if (std::regex_search(title, pattern)) {
             logger->debug("Dropped article {} for matching pattern.", title);
         } else {
-            logger->debug("Keeping article {}.", title);
+            logger->debug("Keeping article {} ({}).", title, index);
 
-            index_list.push_back(it.getIndex());
+            index_list.push_back(index);
             if (index_list.size() == documents) {
+                logger->debug("Pushing indices: {}: {}", curr_num, join(index_list));
                 zim_data.push_job(std::make_pair(curr_num++, index_list), logger);
                 index_list = IndexList();
             }
@@ -300,6 +321,7 @@ void write_articles_to_files(size_t id, std::string input_file, ZimData& zim_dat
     zim::File f(input_file);
     while (true) {
         FileData fd = zim_data.pop_job(logger);
+        logger->debug("Received indices: {}: {}", fd.first, join(fd.second));
         if (fd.second.empty()) {
             logger->info("No more articles to write; exiting...");
             break;
@@ -312,11 +334,16 @@ void write_articles_to_files(size_t id, std::string input_file, ZimData& zim_dat
                            std::ios::out | std::ios::binary);
         for (auto index : fd.second) {
             auto article = f.getArticle(index);
-            logger->debug("Writing title {} to {}...", article.getTitle(), num);
+            logger->debug("Writing title {} ({}) to {}...", article.getTitle(),index, num);
             auto blob = article.getData();
-            uint32_t size = htonl(static_cast<uint32_t>(blob.size()));
-            out.write(reinterpret_cast<char*>(&size), sizeof(size));
-            out.write(blob.data(), blob.size());
+            if (blob.size() > 0) {
+                uint32_t size = htonl(static_cast<uint32_t>(blob.size()));
+                out.write(reinterpret_cast<char*>(&size), sizeof(size));
+                out.write(blob.data(), blob.size());
+            } else {
+                // This should not happen
+                logger->error("Length of document is 0; skipping...");
+            }
         }
     }
 }
