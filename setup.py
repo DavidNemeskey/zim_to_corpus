@@ -64,6 +64,8 @@ setup(name='zim_to_corpus',
           'multiprocessing-logging',
           # A regex engine that supports Unicode character classes (\p{})
           'regex',
+          # Progress bar
+          'tqdm'
       ],
       # zip_safe=False,
       use_2to3=False)

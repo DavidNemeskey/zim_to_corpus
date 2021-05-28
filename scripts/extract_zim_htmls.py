@@ -13,6 +13,8 @@ Finally, the JSON-per-line format is ubiquitous, while the output of zim_to_dir
 is not.
 """
 
+import zim_to_corpus.istarmap
+
 from argparse import ArgumentParser
 from functools import partial
 import gzip
@@ -21,9 +23,11 @@ import logging
 from multiprocessing import Pool
 import os
 import os.path as op
+import sys
 from typing import Dict
 
 from multiprocessing_logging import install_mp_handler
+from tqdm import tqdm
 
 from zim_to_corpus.readers import enumerate_static_dump, get_parser, Parser
 from zim_to_corpus.transformations import remove_empty_tags
@@ -121,7 +125,8 @@ def main():
     with Pool(args.processes) as pool:
         f = partial(convert_to_json,
                     data_type=args.type, parser_args=parser_args)
-        total_docs = sum(pool.starmap(f, in_out_files))
+        progress_bar = partial(tqdm, total=len(in_out_files), file=sys.stdout)
+        total_docs = sum(progress_bar(pool.istarmap(f, in_out_files)))
 
     logging.info(f'Done. Converted a total of {total_docs} documents.')
 
