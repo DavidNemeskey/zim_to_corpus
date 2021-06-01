@@ -3,11 +3,12 @@
 
 """Stuff used for HTML parsing."""
 
+from itertools import groupby
 import re
 from typing import Generator, Union
 
 from bs4 import BeautifulSoup
-from bs4.element import Tag
+from bs4.element import NavigableString, Tag
 
 # Pattern for recognizing headers
 headerp = re.compile('[hH][0-9]+')
@@ -55,3 +56,39 @@ def sections_backwards(tree: Union[BeautifulSoup, Tag]) -> Generator[Tag, None, 
     else:
         if tree.name == 'section':
             yield tree
+
+
+def _merge_strings(tag: Union[BeautifulSoup, Tag], bs: BeautifulSoup):
+    """Inner implementation of :func:`merge_strings`."""
+    to_replace = []
+    index = 0
+    for typ, it in groupby(tag.contents, key=type):
+        nodes = list(it)
+        if issubclass(typ, NavigableString):
+            if len(nodes) > 1:
+                to_replace.append((index, len(nodes), ''.join(nodes)))
+        else:
+            for node in nodes:
+                _merge_strings(node, bs)
+        index += len(nodes)
+    for index, length, string in to_replace[::-1]:
+        for _ in range(length):
+            tag.contents[index].extract()
+        tag.insert(index, bs.new_string(string))
+
+
+def merge_strings(tag: Union[BeautifulSoup, Tag], bs: BeautifulSoup = None):
+    """
+    Merges consecutive :class:`NavigableString`s in _tag_. Recursive.
+
+    :param tag: the root of the tree in which to merge strings.
+    :param bs: the :class:`BeautifulSoup` instance, which is needed to
+               create strings.  Can be ``None``, but in that case, _tag_
+               must be a :class:`BeautifulSoup` instance.
+    """
+    if bs is None:
+        if not isinstance(tag, BeautifulSoup):
+            raise ValueError('Either bs must be specified or tag must be '
+                             f'a BeautifulSoup instance, not {type(tag)}.')
+        bs = tag
+    return _merge_strings(tag, bs)

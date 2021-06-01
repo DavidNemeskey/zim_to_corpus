@@ -3,13 +3,19 @@
 
 """Wikipedia-related functions."""
 
+import copy
 import logging
-from typing import Generator, Union
+from typing import Generator, Iterable, Mapping, Union
 
 from bs4 import BeautifulSoup
 from bs4.element import Comment, NavigableString, Tag
 
-from zim_to_corpus.html import headerp, lip, listp, html_template
+from zim_to_corpus.html import (
+    headerp, lip, listp, html_template, merge_strings
+)
+
+
+TagOrSoup = Union[BeautifulSoup, Tag]
 
 
 class ZimHtmlParser:
@@ -28,35 +34,45 @@ class ZimHtmlParser:
     on wikipedia.org. Also, even some of the .zim files have differently
     structured HTMLs; however, the main Wikipedia dumps (_all_) should work.
     """
-    def __init__(self, html_bytes: bytes):
+    def __init__(self, html_bytes: bytes,
+                 retain_tags: Mapping[str, bool] = None,
+                 tag_replacements: Mapping[str, str] = None):
+        """
+        :param html_bytes: the raw HTML.
+        :param retain: the names of tags to keep in the text.
+        :param replacements: a tag name ``->`` replacement mapping for
+                             tags to replace with a placeholder string.
+        """
         self.old_bs = BeautifulSoup(html_bytes)
-        logging.debug(f'old_bs BEGIN:\n{self.old_bs}\nold_bs END')
         self.new_bs = BeautifulSoup(html_template)
         self.title = self.old_bs.find('title').get_text()
+        self.retain = {'p': False, 'h1': False, 'h2': False, 'h3': False,
+                       'h4': False, 'h5': False, 'h6': False}
+        self.retain.update(dict(retain_tags or {}))
+        self.replacements = dict(tag_replacements or {})
 
     def simplify(self) -> BeautifulSoup:
         """Does the conversion / simplification."""
-        self.new_bs.html.head.title.append(self.old_bs.find('title').get_text())
+        self.new_bs.html.head.title.append(self.title)
 
         # Let's start with the main content
         old_body = self.old_bs.find('div', id='mw-content-text')
         self.filter_tree(old_body)
+        # Parse section is recursive, and we call it on body so that it is
+        # put into
         self.parse_section(old_body, self.new_bs.html.body)
-        # for child in old_body.children:
-        #     logging.debug(f'child {child.name}')
-        #     if child.name == 'details':
-        #         logging.debug('parsing section...')
-        #         self.parse_section(child, self.new_bs.html.body)
 
         # Add the first (title) header, which is usually outside of mw-content-text
         title = self.old_bs.find(id='title_0')
-        logging.debug(f'title {title}')
         # Only add the title if we don't already have a h1
         if title and not self.new_bs.find('h1'):
             first_section = self.new_bs.find('section')
             if first_section:
                 self.add_tag('h1', title.get_text(), first_section, 0)
 
+        # Getting rid of the consecutive NavigableStrings, which look ugly
+        # prettify()'d.
+        merge_strings(self.new_bs)
         return self.new_bs
 
     def filter_tree(self, tree: Tag):
@@ -76,6 +92,35 @@ class ZimHtmlParser:
         for sup in tree.find_all('style'):
             sup.decompose()
 
+    def parse_math(self, node: Tag, new_parent: Tag):
+        """Parses the <math> tag into a sinle line."""
+        new_parent.append(' '.join(node.get_text().split()))
+
+    def parse_generic(self, node: Tag, new_parent: Tag):
+        """
+        Parses a generic _node_ in the old DOM and adds (a simplified form of)
+        its contents to _new_parent_ in the new one. The lists of tags to
+        retain and replace, passed to :meth:`__init__`, are honored; of all
+        the other tags, only the text is kept.
+        """
+        if isinstance(node, NavigableString):
+            new_parent.append(copy.copy(node))
+        elif (rep := self.replacements.get(node.name)):
+            new_parent.append(rep)
+        elif node.name == 'math':
+            self.parse_math(node, new_parent)
+        elif node.name in self.retain:
+            attrs = node.attrs if self.retain[node.name] else {}
+            # new_tag = self.add_tag(node.name, '', new_parent, **attrs)
+            new_tag = self.new_bs.new_tag(node.name, **attrs)
+            for child in self.filter_tags(node, False):
+                self.parse_generic(child, new_tag)
+            if new_tag.contents:
+                new_parent.append(new_tag)
+        else:
+            for child in self.filter_tags(node, False):
+                self.parse_generic(child, new_parent)
+
     def parse_section(self, old_section: Tag, new_parent: Tag):
         """
         Parses a section. Only adds the simplified section to the new DOM if
@@ -92,29 +137,21 @@ class ZimHtmlParser:
                                 f'{old_section.name} in {self.title}.')
                 # raise ValueError(f'NavigableString >{child}< in {old_section.name}')
             elif child.name == 'details':
-                logging.debug('parsing detail')
                 self.parse_section(child, new_section)
             elif child.name == 'p':
-                logging.debug('parsing p')
-                text = ' '.join(child.get_text().split())
-                if text:
-                    self.add_tag('p', text, new_section)
+                self.parse_generic(child, new_section)
             elif child.name == 'div':
-                logging.debug('parsing div')
                 self.parse_div(child, new_section)
             elif child.name == 'summary' and 'section-heading' in child.get('class'):
-                logging.debug('summary!')
                 for gc in child.children:
-                    logging.debug(f'Section grandchild {gc.name}')
                     if headerp.match(gc.name):
-                        logging.debug('HEADER!')
-                        self.add_tag(gc.name, gc.get_text(), new_section)
+                        self.parse_generic(gc, new_section)
             elif listp.match(child.name):
                 self.parse_list(child, new_section)
 
         # Only append non-empty sections (having a single header still counts
         # as empty)
-        if [c for c in new_section.children if not headerp.match(c.name)]:
+        if [c for c in new_section.children if not (c.name and headerp.match(c.name))]:
             new_parent.append(new_section)
 
     def parse_div(self, old_div: Tag, new_section: Tag):
@@ -130,15 +167,17 @@ class ZimHtmlParser:
                                 f'div in {self.title}.')
                 # raise ValueError(f'NavigableString >{child}< in {old_section.name}')
             elif child.name == 'p':
-                text = ' '.join(child.get_text().split())
-                if text:
-                    self.add_tag('p', text, new_section)
+                self.parse_generic(child, new_section)
+                # text = ' '.join(self.get_text(child).split())
+                # if text:
+                #     self.add_tag('p', text, new_section)
             elif child.name == 'div':
                 self.parse_div(child, new_section)
             elif child.name == 'details':
                 logging.warning(f'section in div in {self.title}.')
             elif headerp.match(child.name):
-                self.add_tag(child.name, child.get_text(), new_section)
+                # self.add_tag(child.name, self.get_text(child), new_section)
+                self.parse_generic(child, new_section)
             elif listp.match(child.name):
                 self.parse_list(child, new_section)
 
@@ -159,6 +198,7 @@ class ZimHtmlParser:
             elif lip.match(child.name):
                 self.parse_li(child, new_list)
             elif child.name in ('span', 'div'):
+                # text = self.get_text(child)
                 text = child.get_text()
                 if text.strip():
                     # Just warning, so that we don't break parsing
@@ -166,7 +206,7 @@ class ZimHtmlParser:
                                     f'>{text}< in {old_list.name}')
 
         # Only append non-empty lists
-        if list(new_list.children):
+        if new_list.contents:
             new_parent.append(new_list)
 
     def parse_li(self, old_li, new_list):
@@ -182,20 +222,18 @@ class ZimHtmlParser:
         content = []
         for child in self.filter_tags(old_li, False):
             if isinstance(child, NavigableString):
-                content.append(child)
+                new_li.append(copy.copy(child))
             elif listp.match(child.name):
                 self.parse_list(child, new_li)
             else:
-                content.append(child.get_text())
+                self.parse_generic(child, new_li)
+                # content.append(self.get_text(child))
 
-        content = ' '.join(' '.join(content).split())
-        if content:
-            new_li.insert(0, content)
-        if list(new_li.children):
+        if new_li.contents:
             new_list.append(new_li)
 
     def add_tag(self, name: str, content: str, parent: Tag,
-                position: int = None, **kwattrs: str):
+                position: int = None, **kwattrs: str) -> Tag:
         """
         Adds a new tag under a parent tag with textual content.
 
