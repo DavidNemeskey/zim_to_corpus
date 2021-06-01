@@ -47,8 +47,9 @@ def parse_arguments():
     parser.add_argument('--type-parameters', '-p',
                         type=partial(parse_json, arg='-p'),
                         help='supply extra parameters to the parser type (-t) '
-                             'in a JSON dictionary. The only parameter thus '
-                             'far is keep_poems for the Gutenberg parser.')
+                             'in a JSON dictionary. For the list of '
+                             'parameters available, check the readers in '
+                             'package zim_to_corpus.readers.')
     parser.add_argument('--processes', '-P', type=int, default=1,
                         help='number of worker processes to use (max is the '
                              'num of cores, default: 1)')
@@ -73,6 +74,7 @@ def convert_to_json(input_file: str, output_file: str, data_type: str,
     :param data_type: the type of the content to parse (Wikipedia, ...)
     :returns: the number of documents converted.
     """
+    logging.info(f'Parser args {parser_args}')
     logging.info(f'Converting {input_file} to {output_file}...')
     parsed_docs = 0
     try:
@@ -121,7 +123,7 @@ def main():
     logging.info(f'Scheduled {len(in_out_files)} '
                  f'{get_parser(args.type).canonical} files for conversion.')
 
-    parser_args = json.loads(args.type_parameters or '{}')
+    parser_args = args.type_parameters or {}
     with Pool(args.processes) as pool:
         f = partial(convert_to_json,
                     data_type=args.type, parser_args=parser_args)
