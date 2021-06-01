@@ -277,4 +277,4 @@ class ZimHtmlParser:
 
 def parse(html_bytes: bytes, *args, **kwargs) -> BeautifulSoup:
     """Convenience method for ``ZimHtmlParser(html_text).simplify()``."""
-    return ZimHtmlParser(html_bytes).simplify()
+    return ZimHtmlParser(html_bytes, *args, **kwargs).simplify()
