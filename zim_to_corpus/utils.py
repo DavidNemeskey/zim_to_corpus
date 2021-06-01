@@ -25,7 +25,7 @@ def parse_json(value: str, arg=None) -> Any:
         return json.loads(value)
     except json.JSONDecodeError:
         if arg:
-            raise ArgumentTypeError(f'The value {arg} is not valid json')
+            raise ArgumentTypeError(f'The value of {arg} is not valid json')
         else:
             raise ArgumentTypeError(f'"{value}" is not valid json')
 
