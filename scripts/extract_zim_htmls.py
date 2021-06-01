@@ -74,7 +74,6 @@ def convert_to_json(input_file: str, output_file: str, data_type: str,
     :param data_type: the type of the content to parse (Wikipedia, ...)
     :returns: the number of documents converted.
     """
-    logging.info(f'Parser args {parser_args}')
     logging.info(f'Converting {input_file} to {output_file}...')
     parsed_docs = 0
     try:
