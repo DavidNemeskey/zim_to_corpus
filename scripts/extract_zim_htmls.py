@@ -83,7 +83,8 @@ def convert_to_json(input_file: str, output_file: str, data_type: str,
                 # Only keep non-empty (e.g. not-all-image) pages
                 remove_empty_tags(doc)
                 if doc.find('body'):
-                    print(json.dumps(doc.prettify()), file=outf)
+                    # print(json.dumps(doc.prettify()), file=outf)
+                    print(json.dumps(str(doc)), file=outf)
                     parsed_docs += 1
                 else:
                     title_tag = doc.find('title')
