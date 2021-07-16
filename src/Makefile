@@ -1,6 +1,5 @@
 # Compiles zim_to_dir. Note that you need a g++ version that _properly_
 # supports c++17; that is, version 8 or above.
-CXX=g++-8
 CXX_VER := $(shell $(CXX) --version | head -1 | sed -e "s/.* //" -e "s/\..*//")
 ifeq ($(shell expr $(CXX_VER) \>= 8), 0)
 $(error $(CXX) should at least be of version 8 for proper support of c++17)
