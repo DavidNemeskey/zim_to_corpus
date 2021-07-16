@@ -25,26 +25,42 @@ for other languages can be added easily by modifying a very obvious line in
 ### Compiling the code
 
 The script can be compiled with issuing the `make` command in the `src`
-directory. There are two caveats:
+directory. There are a few caveats.
 
-- currently only `g++` is supported
-- `g++` version of at least 8 is required for C++17 support
+#### Compiler
 
-### Libraries
+Currently only `g++` is supported and at least version 8 is required for
+proper C++17 support.
 
-The program requires two libraries to work:
+#### Libraries
+
+The program requires a few libraries to work. Three of these (`cxxopts`,
+`zstr` and `spdlog`) are added as submodule to this repository. Make sure to
+clone it recursively (i.e.
+
+```
+git clone --recursive https://github.com/DavidNemeskey/zim_to_corpus
+```
+
+) or to activate the submodules after cloning normally:
+
+```
+git submodule init
+git submodule update
+```
+
+Aside from these, two other libraries (and their sources or `-dev` packages) are  required:
 
 - [`libzim`](https://github.com/openzim/libzim) (also called Zimlib) to process
   the files. Libzim can be installed from the repositories of Linux
-  distributions, or (preferably, see below) compiled from source;
-- `zlib`, for compression.
+  distributions (`libzim-dev`), or compiled from source;
+- `zlib`, for compression (e.g. `zlib1g-dev` in Ubuntu).
 
 Note that some of the files in the Kiwix archives (most importantly, the
-English WP dump) require a recent version of libzim. For instance, the
-`libzim0v5` version found in Ubuntu Xenial / Linux Mint 18 fails with
-"_error reading zim-file header_". Because of this, libzim version 6.3.0 is
-recommended (the API changed in 7.0, and `zim_to_dir` is not yet compatible
-with it).
+English WP dump) require a recent version of libzim. A libzim version between
+4.0 and 6.3 is recommended; note that the API changed in 7.0, and
+`zim_to_dir` is not yet compatible with it. The version in recent Ubuntu
+releases should work without problems.
 
 ### Troubleshooting
 
