@@ -9,7 +9,7 @@ CPPFLAGS=-g -O3 -I cxxopts/include/ -I zstr/src/ -I spdlog/include -std=c++17
 # Static libstdc++ can be removed if the target machine has the same or
 # newer GLIBCXX version
 LDFLAGS=-g -static-libstdc++
-LDLIBS=-lzim $(if $(findstring 8,$(CXX_VER)), -lstdc++fs) -lz -pthread
+LDLIBS=$(if $(findstring 8,$(CXX_VER)), -lstdc++fs) -l:libzim.a -l:liblzma.a -l:libzstd.a -lz -pthread
 
 SRCS=zim_to_dir.cpp
 OBJS=$(subst .cpp,.o,$(SRCS))
