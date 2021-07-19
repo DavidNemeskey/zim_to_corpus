@@ -81,7 +81,7 @@ public:
                 ("Z,zeroes", "the number of zeroes in the output files' names.",
                  cxxopts::value<size_t>()->default_value("4"))
                 ("T,threads", "the number of parallel threads to use.",
-                 cxxopts::value<size_t>()->default_value("10"))
+                 cxxopts::value<size_t>()->default_value("4"))
                 ("L,log-level", "the logging level. One of "
                                 "{critical, error, warn, info, debug, trace}.",
                  cxxopts::value<std::string>()->default_value("info"))
