@@ -31,8 +31,7 @@ for other languages can be added easily by modifying a very obvious line in
 The `zim_to_dir` executable can be acquired in several ways:
 - Downloading a release from
   [the `zim_to_corpus` repository](https://github.com/DavidNemeskey/zim_to_corpus)
-- Using the docker image, either by downloading it from the Docker Hub or
-  building it from the `Dockerfile` in the `docker` directory
+- Building the docker image from the `Dockerfile` in the `docker` directory
 - Compiling the code manually
 
 ### Usage
@@ -49,9 +48,11 @@ zim_to_dir -i wikipedia_hu_all_mini.zim -o hu_mini/ -d 2000
 ```
 
 One thing worth mentioning: the number of threads the program uses to parse
-records can be increased to speed it up somewhat. However, since the `zim`
-format is inherently sequential, the speed tops at around 4 threads (might
-depend on the storage).
+records can be increased (from 4) to speed it up somewhat. However, since the
+`zim` format is sequential, the whole task is, to a large extent, I/O bound;
+because of this, the speed tops at a certain number of threads depending on the
+storage type: slow HDDs max out around 4 threads, while fast SSDs can scale
+even up to 24.
 
 #### Docker image
 
@@ -76,9 +77,18 @@ docker run --rm --mount type=bind,source=/home/user/data/,target=/data zim_to_di
 
 The script can be compiled with issuing the `make` command in the `src`
 directory. There are a few caveats, and because of this, it is easier to 
-build the docker image, which compiles the source and all its dependencies.
-Here we present the general guidelines; check out the `Dockerfile` for the
-details.
+build the docker image, which compiles the source and all its dependencies:
+
+```
+cd docker
+docker build -t zim_to_dir .
+```
+
+This method has the added benefit of not polluting the system with potentially
+unneeded libraries and packages and it also works without `root` access.
+
+For those who wish to compile the code manually, here we present the general
+guidelines. Check out the `Dockerfile` for the detailed list of commands.
 
 #### Compiler
 
