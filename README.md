@@ -1,6 +1,10 @@
 # zim_to_corpus
 
 Scripts to extract the text from (mostly) Wikipedia pages from .zim archives.
+The repository contains two components: `zim_to_dir`, a C++ program to extract
+pages from zim archives; and a number of Python scripts to process its output
+and convert the data into various formats (such as inputs for BERT, fasttext,
+etc).
 
 ## `zim_to_dir`
 
@@ -22,10 +26,69 @@ As of now, only English and Hungarian dumps are supported. However, "support"
 for other languages can be added easily by modifying a very obvious line in
 `zim_to_dir.cpp`.
 
+### How to acquire
+
+The `zim_to_dir` executable can be acquired in several ways:
+- Downloading a release from
+  [the `zim_to_corpus` repository](https://github.com/DavidNemeskey/zim_to_corpus)
+- Building the docker image from the `Dockerfile` in the `docker` directory
+- Compiling the code manually
+
+### Usage
+
+#### The executable
+
+The executable has two main arguments: `-i` is used to specify the input `.zim`
+file, and `-o` the output directory. The rest of the arguments can be used to
+tune some of the aspects of the process; use the `-h/--help` option to list
+them. An example run:
+
+```
+zim_to_dir -i wikipedia_hu_all_mini.zim -o hu_mini/ -d 2000
+```
+
+One thing worth mentioning: the number of threads the program uses to parse
+records can be increased (from 4) to speed it up somewhat. However, since the
+`zim` format is sequential, the whole task is, to a large extent, I/O bound;
+because of this, the speed tops at a certain number of threads depending on the
+storage type: slow HDDs max out around 4 threads, while fast SSDs can scale
+even up to 24.
+
+#### Docker image
+
+The docker image can be used in two ways:
+1. The `zim_to_dir` executable can be copied out of a container and used
+as described above. For instance:
+```
+$ docker create zim_to_dir
+e892d6ff245b55e03e41384d1e7d2838babd944a8e31096b3677a05359f38aba
+$ docker cp e892d6ff245b:/zim_to_dir .
+$ docker rm e892d6ff245b
+e892d6ff245b
+```
+2. The container is also runnable and will run `zim_to_dir` by default. However,
+in order for the container to see the input and output directories, they must
+be mounted as volumes:
+```
+docker run --rm --mount type=bind,source=/home/user/data/,target=/data zim_to_dir -i /data/wikipedia_hu_all_mini.zim -o /data/hu_mini/ -d 2000
+```
+
 ### Compiling the code
 
 The script can be compiled with issuing the `make` command in the `src`
-directory. There are a few caveats.
+directory. There are a few caveats, and because of this, it is easier to 
+build the docker image, which compiles the source and all its dependencies:
+
+```
+cd docker
+docker build -t zim_to_dir .
+```
+
+This method has the added benefit of not polluting the system with potentially
+unneeded libraries and packages and it also works without `root` access.
+
+For those who wish to compile the code manually, here we present the general
+guidelines. Check out the `Dockerfile` for the detailed list of commands.
 
 #### Compiler
 
@@ -51,16 +114,17 @@ git submodule update
 
 Aside from these, two other libraries (and their sources or `-dev` packages) are  required:
 
-- [`libzim`](https://github.com/openzim/libzim) (also called Zimlib) to process
-  the files. Libzim can be installed from the repositories of Linux
-  distributions (`libzim-dev`), or compiled from source;
-- `zlib`, for compression (e.g. `zlib1g-dev` in Ubuntu).
+1. `zlib`, for compression (e.g. `zlib1g-dev` in Ubuntu);
+2. [`libzim`](https://github.com/openzim/libzim) (also called Zimlib) to
+   process the files. Libzim can be installed from the repositories of Linux
+   distributions (`libzim-dev`), but e.g. Ubuntu only has version 4, so
+   depending on how recent is the file to process, it might have to be
+   compiled [from source](https://github.com/openzim/libzim).
 
 Note that some of the files in the Kiwix archives (most importantly, the
-English WP dump) require a recent version of libzim. A libzim version between
-4.0 and 6.3 is recommended; note that the API changed in 7.0, and
-`zim_to_dir` is not yet compatible with it. The version in recent Ubuntu
-releases should work without problems.
+English WP dump) require a fresh version of libzim. libzim version
+6.3 is recommended; note that the API changed in 7.0, and
+`zim_to_dir` is not yet compatible with it.
 
 ### Troubleshooting
 
