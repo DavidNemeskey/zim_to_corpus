@@ -109,6 +109,9 @@ def main():
         level=getattr(logging, args.log_level.upper()),
         format='%(asctime)s - %(process)s - %(levelname)s - %(message)s'
     )
+    # Note: multiprocessing_logging sometimes causes hangups. In that case,
+    #       just comment out these logging statements, as well as
+    #       instal_mp_handler
     install_mp_handler()
 
     logging.info(f'Script: {__file__}, args: {args}')
@@ -129,6 +132,9 @@ def main():
                     data_type=args.type, parser_args=parser_args)
         progress_bar = partial(tqdm, total=len(in_out_files), file=sys.stdout)
         total_docs = sum(progress_bar(pool.istarmap(f, in_out_files)))
+
+        pool.close()
+        pool.join()
 
     logging.info(f'Done. Converted a total of {total_docs} documents.')
 
