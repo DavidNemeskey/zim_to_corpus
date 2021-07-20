@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from bs4.element import Comment, NavigableString, Tag
 
 from zim_to_corpus.html import (
-    headerp, lip, listp, html_template, merge_strings
+    get_section_title_tag, headerp, lip, listp, html_template, merge_strings
 )
 
 
@@ -65,10 +65,18 @@ class ZimHtmlParser:
         # Add the first (title) header, which is usually outside of mw-content-text
         title = self.old_bs.find(id='title_0')
         # Only add the title if we don't already have a h1
-        if title and not self.new_bs.find('h1'):
-            first_section = self.new_bs.find('section')
-            if first_section:
-                self.add_tag('h1', title.get_text(), first_section, 0)
+        first_section = self.new_bs.find('section')
+        if first_section:
+            try:
+                header_tag = get_section_title_tag(first_section)
+            except ValueError:
+                header_tag = None
+            # if title and not self.new_bs.find('h1'):
+            if title and not header_tag:
+                logging.debug(f'Title but no h1: {title}')
+                first_section = self.new_bs.find('section')
+                if first_section:
+                    self.add_tag('h1', title.get_text(), first_section, 0)
 
         # Getting rid of the consecutive NavigableStrings, which look ugly
         # prettify()'d.
