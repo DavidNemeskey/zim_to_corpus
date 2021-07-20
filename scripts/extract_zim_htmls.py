@@ -112,7 +112,7 @@ def main():
     # Note: multiprocessing_logging sometimes causes hangups. In that case,
     #       just comment out these logging statements, as well as
     #       instal_mp_handler
-    install_mp_handler()
+    # install_mp_handler()
 
     logging.info(f'Script: {__file__}, args: {args}')
 
