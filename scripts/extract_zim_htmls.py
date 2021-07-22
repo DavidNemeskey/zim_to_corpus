@@ -26,6 +26,7 @@ import os.path as op
 import sys
 from typing import Dict
 
+from bs4 import BeautifulSoup
 from multiprocessing_logging import install_mp_handler
 from tqdm import tqdm
 
@@ -84,7 +85,12 @@ def convert_to_json(input_file: str, output_file: str, data_type: str,
                 remove_empty_tags(doc)
                 if doc.find('body'):
                     # print(json.dumps(doc.prettify()), file=outf)
-                    print(json.dumps(str(doc)), file=outf)
+                    # We re-parse the HTML so that if BeautifulSoup does any
+                    # modifications (such as deleting superfluous newlines),
+                    # it does it NOW. In this case, if anyone reparses
+                    # our output and changes it, diff will still work and
+                    # not report a lot of (potential) cosmetic changes.
+                    print(json.dumps(str(BeautifulSoup(str(doc)))), file=outf)
                     parsed_docs += 1
                 else:
                     title_tag = doc.find('title')
