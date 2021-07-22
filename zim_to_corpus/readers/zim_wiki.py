@@ -73,7 +73,7 @@ class ZimHtmlParser:
                 header_tag = None
             # if title and not self.new_bs.find('h1'):
             if title and not header_tag:
-                logging.debug(f'Title but no h1: {title}')
+                logging.debug(f'Title but no h1: {title.get_text()}')
                 first_section = self.new_bs.find('section')
                 if first_section:
                     self.add_tag('h1', title.get_text(), first_section, 0)

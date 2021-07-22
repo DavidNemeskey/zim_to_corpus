@@ -79,6 +79,10 @@ def parse_arguments():
                              'that should be removed from the pages before '
                              'conversion. The file should list one title each '
                              'line.')
+    parser.add_argument('--filter-sections-by-regex', '-S',
+                        help='a file that lists regular expressions, one per '
+                             'line. Sections whose header matches one of them '
+                             'are removed from the pages before conversion.')
     parser.add_argument('--filter-documents', '-d',
                         help='a file that lists regular expression patterns '
                              'for titles of documents to skip. Some documents '
@@ -144,6 +148,7 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
             format_args: Dict[str, Any],
             tokenizer_args: Dict[str, Any],
             sections_to_filter: Set[str],
+            sections_to_filter_regex: Pattern,
             documents_to_filter: Set[Pattern],
             uncased: bool = False) -> int:
     """
@@ -180,8 +185,10 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
                 if title and any(p.match(title) for p in documents_to_filter):
                     logging.debug(f'Skipping document {title}...')
                     continue
-                if sections_to_filter:
-                    remove_sections(html, sections_to_filter)
+                if sections_to_filter or sections_to_filter_regex:
+                    remove_sections(html,
+                                    sections_to_filter,
+                                    sections_to_filter_regex)
 
                 # As a last step, let's get rid of the empty tags now
                 remove_empty_tags(html)
@@ -217,6 +224,21 @@ def file_to_set(file_name: str) -> Set[str]:
     return set_from_file
 
 
+def file_to_regex(file_name: str) -> Pattern:
+    """
+    Loads a file to a regex. Lines are "disjuncted".
+
+    :returns: a regex that is the disjunction of all lines in the file, or
+              ``None`` if _file_name_ is.
+    """
+    if file_name:
+        with open(file_name, 'rt') as inf:
+            return re.compile(
+                '|'.join((re.escape(line.strip()) for line in inf)))
+    else:
+        return None
+
+
 def main():
     args = parse_arguments()
 
@@ -238,6 +260,7 @@ def main():
     logging.info(f'Scheduled {len(input_files)} files for conversion.')
 
     sections_to_filter = file_to_set(args.filter_sections)
+    sections_to_filter_regex = file_to_regex(args.filter_sections_regex)
     documents_to_filter = {re.compile(pattern, re.V0) for pattern in
                            file_to_set(args.filter_documents)}
     logging.info(f'Filtering {len(sections_to_filter)} sections.')
@@ -249,6 +272,7 @@ def main():
                     format_args=args.format_json,
                     tokenizer_args=args.tokenizer_json,
                     sections_to_filter=sections_to_filter,
+                    sections_to_filter_regex=sections_to_filter_regex,
                     documents_to_filter=documents_to_filter,
                     uncased=args.uncased)
         total_docs = sum(pool.imap_unordered(f, input_files))

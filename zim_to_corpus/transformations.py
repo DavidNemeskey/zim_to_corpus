@@ -188,11 +188,13 @@ def remove_empty_tags(bs: BeautifulSoup):
     visit_tree(bs, post_tag_callback=post_remove)
 
 
-def remove_sections(bs: BeautifulSoup, sections: Set[str]):
+def remove_sections(bs: BeautifulSoup,
+                    sections: Set[str] = None,
+                    regex: Pattern = None):
     """
     Removes consecutive sections from the end of the document whose names are
-    contained in _sections_. The functions stops when the first section not in
-    the set is met.
+    contained in _sections_ or match _regex_. The functions stops when the
+    first section not in the set is met.
     """
     def post_remove(_, tag):
         if tag.name == 'section':
@@ -201,14 +203,18 @@ def remove_sections(bs: BeautifulSoup, sections: Set[str]):
                 title = title_tag.get_text().strip()
             except ValueError:
                 title = None
-            if title_tag.name != 'h1' and title in sections:
-                logging.debug(f'Removing title {title}...')
-                tag.decompose()
-            elif is_empty(tag):
-                logging.debug(f'Removing empty {title}...')
-                tag.decompose()
-            else:
-                logging.debug(f'Stopping at {title}!')
-                raise StopVisitor(f'First section not in set: {title}')
+            if title_tag.name != 'h1':
+                if (
+                    (sections and title in sections) or
+                    (regex and regex.search(title, re.I))
+                ):
+                    logging.debug(f'Removing title {title}...')
+                    tag.decompose()
+                elif is_empty(tag):
+                    logging.debug(f'Removing empty {title}...')
+                    tag.decompose()
+                else:
+                    logging.debug(f'Stopping at {title}!')
+                    raise StopVisitor(f'First section not in set: {title}')
 
     visit_tree(bs, post_tag_callback=post_remove)

@@ -16,14 +16,15 @@ import logging
 from multiprocessing import Pool
 import os
 import os.path as op
-from typing import Dict
+from typing import Dict, List
 
-from bs4.element import Tag
-from multiprocessing_logging import install_mp_handler
+from bs4 import BeautifulSoup
 
 from zim_to_corpus.readers import parse_simple_html
 from zim_to_corpus.transformations import in_set, remove_tags
-from zim_to_corpus.html import get_section_title
+from zim_to_corpus.html import (
+    get_section_title, get_section_title_tag, sections_backwards
+)
 
 
 def parse_arguments():
@@ -47,7 +48,7 @@ def parse_arguments():
 @dataclass
 class Statistics:
     """Section statistics."""
-    # The number we see it
+    # The number of times we see it
     count: int = 0
     # The number of times we see the section as empty if lists are removed
     empty: int = 0
@@ -67,6 +68,13 @@ class Statistics:
                 f'{self.position}\t{pos_ratio}')
 
 
+def get_headers(html: BeautifulSoup) -> List[str]:
+    """Collects all h2 headers from _html_ and returns them."""
+    return [get_section_title(s) for s in sections_backwards(html)
+            if (header_tag := get_section_title_tag(s, False)) and
+            header_tag.name == 'h2'][::-1]
+
+
 def statistics(input_file: str) -> Dict[str, Statistics]:
     logging.info(f'Collecting statistics from {input_file}...')
     section_stats = defaultdict(Statistics)
@@ -75,17 +83,19 @@ def statistics(input_file: str) -> Dict[str, Statistics]:
             for doc_no, line in enumerate(inf, start=1):
                 html = parse_simple_html(json.loads(line))
                 title = html.head.title.get_text()
-                sections = [c for c in html.body.children
-                            if isinstance(c, Tag)]
                 all_sections = set()
+                try:
+                    headers = get_headers(html)
+                except ValueError:
+                    logging.error(f'Error in {input_file}, document {doc_no}: '
+                                  f'{title}')
 
-                for i, section in enumerate(sections, start=1):
+                for i, header in enumerate(headers, start=1):
                     try:
-                        header = get_section_title(section)
                         all_sections.add(header)
                         stats = section_stats[header]
                         stats.count += 1
-                        stats.position += len(sections) - i
+                        stats.position += len(headers) - i
                     except ValueError:
                         logging.error(f'No header for section {i} in '
                                       f'{html.head.title.get_text()}')
@@ -94,10 +104,8 @@ def statistics(input_file: str) -> Dict[str, Statistics]:
                 nonempty_sections = set()
                 # In case the whole page consists solely of lists
                 if html.body:
-                    for section in (c for c in html.body.children
-                                    if isinstance(c, Tag)):
+                    for header in get_headers(html):
                         try:
-                            header = get_section_title(section)
                             nonempty_sections.add(header)
                         except ValueError:
                             pass
@@ -121,7 +129,6 @@ def main():
         level=getattr(logging, args.log_level.upper()),
         format='%(asctime)s - %(process)s - %(levelname)s - %(message)s'
     )
-    install_mp_handler()
 
     logging.info(f'Script: {__file__}, args: {args}')
 

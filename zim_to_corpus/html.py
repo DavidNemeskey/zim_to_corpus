@@ -26,13 +26,24 @@ html_template = """<html>
 </html>"""
 
 
-def get_section_title_tag(section: Tag) -> Tag:
-    """Returns the title (first header) tag of the section."""
+def get_section_title_tag(section: Tag, exception: bool = True) -> Tag:
+    """
+    Returns the title (first header) tag of the section.
+
+    :param section: the section tag.
+    :param exception: can be set to ``False`` to make the function return
+                      ``None`` instead of throwing an exception if the
+                      section has no header.
+    :return: the header **tag**.
+    """
     for child in section.children:
         if headerp.match(child.name):
             return child
     else:
-        raise ValueError('No header in section')
+        if exception:
+            raise ValueError('No header in section')
+        else:
+            return None
 
 
 def get_section_title(section: Tag) -> str:
