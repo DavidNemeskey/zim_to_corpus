@@ -88,7 +88,7 @@ def file_to_regex(file_name: str) -> Pattern:
     """
     if file_name:
         return re.compile(
-            '|'.join((re.escape(p) for p in file_to_set(file_name))), re.V0
+            '|'.join((f'({p})' for p in file_to_set(file_name))), re.V0|re.I
         )
     else:
         return None
@@ -106,15 +106,13 @@ def filter_file(input_file: str, output_dir: str,
     output_file = op.join(output_dir, op.basename(input_file))
     logging.info(f'Filtering {input_file} to {output_file}...')
 
-    # Deletes control characters from the HTML text
-    del_ctrl = re.compile(r'[\p{C}--\t\n]', re.V1)
     written = 0
     with gzip.open(input_file) as inf, gzip.open(output_file, 'wt') as outf:
         for doc_no, line in enumerate(inf, start=1):
             html = None
             try:
                 raw_html = json.loads(line)
-                html = parse_simple_html(del_ctrl.sub('', raw_html))
+                html = parse_simple_html(raw_html)
                 title = get_html_title(html)
                 if (
                     title and documents_to_filter and
@@ -130,7 +128,7 @@ def filter_file(input_file: str, output_dir: str,
                 # As a last step, let's get rid of the empty tags now
                 remove_empty_tags(html)
 
-                print(html, file=outf)
+                print(json.dumps(str(html)), file=outf)
                 written += 1
             except:
                 html_text = f'in {title} ' if html and title else ''
@@ -162,13 +160,19 @@ def main():
     logging.info(f'Scheduled {len(input_files)} files for filtering.')
 
     sections_to_filter = file_to_set(args.filter_sections)
-    sections_to_filter_regex = file_to_regex(args.filter_sections_regex)
+    sections_to_filter_regex = file_to_regex(args.filter_sections_by_regex)
     documents_to_filter = file_to_regex(args.filter_documents)
 
-    logging.info(f'Filtering {len(sections_to_filter)} exact sections and '
-                 f'{sections_to_filter_regex.pattern.count("|")} patterns.')
-    logging.info(f'Filtering {documents_to_filter.pattern.count("|")} '
-                 'document patterns.')
+    if sections_to_filter:
+        logging.info(f'Filtering {len(sections_to_filter)} exact sections.')
+    if sections_to_filter_regex:
+        logging.info(
+            f'Filtering {sections_to_filter_regex.pattern.count("|") + 1} '
+            'patterns.'
+        )
+    if documents_to_filter:
+        logging.info(f'Filtering {documents_to_filter.pattern.count("|") + 1} '
+                     'document patterns.')
 
     with Pool(args.processes) as pool:
         f = partial(filter_file, output_dir=args.output_dir,
