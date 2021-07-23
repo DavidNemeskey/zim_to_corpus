@@ -14,10 +14,12 @@ import logging
 from multiprocessing import Pool
 import os
 import os.path as op
+import sys
 from typing import Pattern, Set, Tuple
 
 from multiprocessing_logging import install_mp_handler
 import regex as re
+from tqdm import tqdm
 
 from zim_to_corpus.html import get_html_title
 from zim_to_corpus.readers import parse_simple_html
@@ -88,7 +90,8 @@ def file_to_regex(file_name: str) -> Pattern:
     """
     if file_name:
         return re.compile(
-            '|'.join((f'({p})' for p in file_to_set(file_name))), re.V0|re.I
+            '|'.join((f'({p})' for p in file_to_set(file_name))),
+            re.V0 | re.I
         )
     else:
         return None
@@ -179,8 +182,9 @@ def main():
                     sections_to_filter=sections_to_filter,
                     sections_to_filter_regex=sections_to_filter_regex,
                     documents_to_filter=documents_to_filter)
+        progress_bar = partial(tqdm, total=len(input_files), file=sys.stdout)
         docs_read, docs_written = 0, 0
-        for read, written in pool.imap_unordered(f, input_files):
+        for read, written in progress_bar(pool.imap_unordered(f, input_files)):
             docs_read += read
             docs_written += written
         pool.close()
