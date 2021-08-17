@@ -172,6 +172,8 @@ filter_htmls.py -i hu_json_htmls -o hu_filtered_htmls -s skip_sections.lst -S sk
 - `skip_sections.regex` contains one regex per line, such as `^Source`, `.* reading$`
 - `skip_sections.lst` contains full section names on a line such as `Notes`
 
+See `section_statistics.py`, below.
+
 ## `convert.py`
 
 Converts documents (Wikipedia pages, Project Gutenberg books, etc.) in the
@@ -182,3 +184,19 @@ Various output formats are supported, each of which has its own set parameters.
 The same can be said of the supported tokenizers. The available parameters can
 be found in the `zim_to_corpus.converters` module and
 `zim_to_corpus.tokenization` package.
+
+## `section_statistics.py`
+
+Collects statistics of each section title in the corpus. The output is a `tsv`
+file with the following columns:
+- section title
+- number of times it occurs in the corpus
+- the number of times it is "empty", i.e. it only contains lists
+- the "_empty ratio_": the quotient of the last two numbers
+- the sum of the positions of the section, counted from the read $--$
+  probably not a very useful metric
+- the _average position_ of the section, counted from the rear. Sections such as
+  _Sources_ or _References_ have typically a low average position
+
+The resulting statistics can be used to generate section filtering lists for
+`filter_htmls.py`.
