@@ -139,3 +139,64 @@ If `zim_to_dir` fails to read a zim file with the message
 "_error reading zim-file header_", then it was compiled against an outdated
 libzim version. Upgrade libzim to a more recent one.
 against is 
+
+## `extract_zim_htmls.py`
+
+Extracts all (Wikipedia, Project Gutenberg) HTMLs from the files output by
+`zim_to_dir`. Each page is cleaned up, filtered and converted into a minimal
+HTML, and then saved as a JSON string. In theory, this step could have been
+skipped, and the script that creates the final format(s) could have operated on
+the output of zim_to_dir. However, filtering substantially decreases the size
+of, and access time to, the data. This factor becomes important, as there are
+several output formats and the converter script might be called for all of
+them.  Finally, the JSON-per-line format is ubiquitous, while the output of
+`zim_to_dir` is not.
+
+Example usage converting the Wikipedia pages to simple HTML, retaining links
+and converting mathematical formulas to a placeholder symbol:
+
+```
+extract_zim_htmls.py -i hu_mini -o hu_json_htmls -t wikipedia '{"retain": ["a"], "replacements": {"math": "$MATH$"}}' -P 4
+```
+
+## `filter_htmls.py`
+
+Filters documents and sections from the output of `extract_zim_htmls.py`.
+
+Example usage:
+
+```
+filter_htmls.py -i hu_json_htmls -o hu_filtered_htmls -s skip_sections.lst -S skip_sections.regex -P 4
+```
+, where
+- `skip_sections.regex` contains one regex per line, such as `^Source`, `.* reading$`
+- `skip_sections.lst` contains full section names on a line such as `Notes`
+
+See `section_statistics.py`, below.
+
+## `convert.py`
+
+Converts documents (Wikipedia pages, Project Gutenberg books, etc.) in the
+"simple HTML" format (i.e. the output of `extract_zim_htmls.py`) to various
+other formats (WT-2, BERT, CoNLL-U tsv, etc.)
+
+Various output formats are supported, each of which has its own set parameters.
+The same can be said of the supported tokenizers. The available parameters can
+be found in the `zim_to_corpus.converters` module and
+`zim_to_corpus.tokenization` package.
+
+## `section_statistics.py`
+
+Collects statistics of each section title in the corpus. The output is a `tsv`
+file with the following columns:
+- section title
+- number of times it occurs in the corpus
+- the number of times it is "empty", i.e. it only contains lists
+- the "_empty ratio_": the quotient of the last two numbers
+- the sum of the positions of the section, counted from the read $--$
+  probably not a very useful metric
+- the _average position_ of the section, counted from the rear. Sections such as
+  _Sources_ or _References_ have typically a low average position
+
+The resulting statistics can be used to generate section filtering lists for
+`filter_htmls.py`.

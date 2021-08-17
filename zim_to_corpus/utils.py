@@ -92,3 +92,8 @@ def instantiate_json(json_dict: str) -> Any:
     the arguments of the latter function.
     """
     return instantiate(**json.loads(json_dict))
+
+
+def identity(obj: Any) -> Any:
+    """An identity function, to be used for a noop transformation."""
+    return obj

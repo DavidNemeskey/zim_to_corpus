@@ -3,8 +3,8 @@
 
 """
 Extracts all (Wikipedia, Project Gutenberg) HTMLs from the files output by
-zim_to_dir. Each page is filtered and converted into a minimal HTML, and then
-saved as a JSON string. In theory, this step could have been
+zim_to_dir. Each page is cleaned up, filtered and converted into a minimal
+HTML, and then saved as a JSON string. In theory, this step could have been
 skipped, and the script that creates the final format(s) could have operated on
 the output of zim_to_dir. However, filtering substantially decreases the size
 of, and access time to, the data. This factor becomes important, as there are
@@ -13,7 +13,7 @@ Finally, the JSON-per-line format is ubiquitous, while the output of zim_to_dir
 is not.
 """
 
-import zim_to_corpus.istarmap
+import zim_to_corpus.istarmap  # noqa
 
 from argparse import ArgumentParser
 from functools import partial
@@ -26,7 +26,9 @@ import os.path as op
 import sys
 from typing import Dict
 
-from multiprocessing_logging import install_mp_handler
+from bs4 import BeautifulSoup
+# from multiprocessing_logging import install_mp_handler
+import regex as re
 from tqdm import tqdm
 
 from zim_to_corpus.readers import enumerate_static_dump, get_parser, Parser
@@ -76,6 +78,8 @@ def convert_to_json(input_file: str, output_file: str, data_type: str,
     """
     logging.info(f'Converting {input_file} to {output_file}...')
     parsed_docs = 0
+    # Deletes control characters from the HTML text
+    del_ctrl = re.compile(r'[\p{C}--\t\n]', re.V1)
     try:
         with gzip.open(output_file, 'wt') as outf:
             for doc_no, html in enumerate(enumerate_static_dump(input_file), 1):
@@ -84,7 +88,13 @@ def convert_to_json(input_file: str, output_file: str, data_type: str,
                 remove_empty_tags(doc)
                 if doc.find('body'):
                     # print(json.dumps(doc.prettify()), file=outf)
-                    print(json.dumps(str(doc)), file=outf)
+                    # We re-parse the HTML so that if BeautifulSoup does any
+                    # modifications (such as deleting superfluous newlines),
+                    # it does it NOW. In this case, if anyone reparses
+                    # our output and changes it, diff will still work and
+                    # not report a lot of (potential) cosmetic changes.
+                    clean_text = del_ctrl.sub('', str(doc))
+                    print(json.dumps(str(BeautifulSoup(clean_text))), file=outf)
                     parsed_docs += 1
                 else:
                     title_tag = doc.find('title')

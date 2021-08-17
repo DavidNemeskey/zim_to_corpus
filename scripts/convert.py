@@ -3,8 +3,8 @@
 
 """
 Converts documents (Wikipedia pages, Project Gutenberg books, etc.) in the
-"simple HTML" format (i.e. the output of convert.py) to various other formats
-(WT-2, BERT, CoNLL-U tsv, etc.)
+"simple HTML" format (i.e. the output of extract_zim_htmls.py) to various
+other formats (WT-2, BERT, CoNLL-U tsv, etc.)
 """
 
 from argparse import ArgumentParser
@@ -15,18 +15,20 @@ import logging
 from multiprocessing import Pool
 import os
 import os.path as op
+import sys
 from typing import Any, Dict, List, Pattern, Set
 
 from bs4 import BeautifulSoup
 from multiprocessing_logging import install_mp_handler
 import regex as re
+from tqdm import tqdm
 
 from zim_to_corpus.html import get_html_title, get_section_title, html_template
 from zim_to_corpus.readers import parse_simple_html
 from zim_to_corpus.utils import (
-    get_subclasses_of, instantiate, parse_json, prefix_name
+    get_subclasses_of, identity, instantiate, parse_json, prefix_name
 )
-from zim_to_corpus.transformations import remove_empty_tags, remove_sections
+from zim_to_corpus.transformations import remove_empty_tags
 
 
 def parse_arguments():
@@ -74,20 +76,6 @@ def parse_arguments():
                                 'dictionary; see -F, above. Only subclasses of '
                                 'Tokenizer in the module tokenization are '
                                 'supported.')
-    parser.add_argument('--filter-sections', '-s',
-                        help='a file that lists sections (headers thereof) '
-                             'that should be removed from the pages before '
-                             'conversion. The file should list one title each '
-                             'line.')
-    parser.add_argument('--filter-sections-by-regex', '-S',
-                        help='a file that lists regular expressions, one per '
-                             'line. Sections whose header matches one of them '
-                             'are removed from the pages before conversion.')
-    parser.add_argument('--filter-documents', '-d',
-                        help='a file that lists regular expression patterns '
-                             'for titles of documents to skip. Some documents '
-                             'might turn out to be useless, contain content '
-                             'that breaks the tokenizer, etc.')
     parser.add_argument('--processes', '-P', type=int, default=1,
                         help='number of worker processes to use (max is the '
                              'num of cores, default: 1)')
@@ -136,20 +124,15 @@ def sections_to_docs(html: BeautifulSoup) -> List[BeautifulSoup]:
     return ret
 
 
-def uncase(text, uncased: bool = False):
-    """
-    "Uncases" (lowercases) _text_ if _uncased_ is ``True``; otherwise, keeps
-    it unchanged.
-    """
-    return text.lower() if uncased else text
+def uncase(text):
+    """"Uncases" (lowercases) _text_."""
+    # TODO delete if not needed
+    return text.lower()
 
 
 def convert(input_file: str, output_dir: str, section_as_doc: bool,
             format_args: Dict[str, Any],
             tokenizer_args: Dict[str, Any],
-            sections_to_filter: Set[str],
-            sections_to_filter_regex: Pattern,
-            documents_to_filter: Set[Pattern],
             uncased: bool = False) -> int:
     """
     Parses all documents in _input_file_ and writes them to a file in
@@ -159,7 +142,7 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
 
     :returns: the number of documents converted.
     """
-    transform = partial(uncase, uncased=uncased)
+    case = str.lower if uncased else identity
     tokenizer = instantiate(**tokenizer_args)
     format_args.setdefault('args', []).insert(0, tokenizer)
     converter = instantiate(**format_args)
@@ -182,24 +165,17 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
                 raw_html = json.loads(line)
                 html = parse_simple_html(del_ctrl.sub('', raw_html))
                 title = get_html_title(html)
-                if title and any(p.match(title) for p in documents_to_filter):
-                    logging.debug(f'Skipping document {title}...')
-                    continue
-                if sections_to_filter or sections_to_filter_regex:
-                    remove_sections(html,
-                                    sections_to_filter,
-                                    sections_to_filter_regex)
 
-                # As a last step, let's get rid of the empty tags now
+                # Just to be on the safe side
                 remove_empty_tags(html)
 
                 # We are done, let's print the document!
                 if section_as_doc:
                     for section_doc in sections_to_docs(html):
-                        print(transform(converter(section_doc)),
+                        print(case(converter(section_doc)),
                               file=outf, end='')
                 else:
-                    print(transform(converter(html)), file=outf, end='')
+                    print(case(converter(html)), file=outf, end='')
             except:
                 html_text = f'in {title} ' if html and title else ''
                 logging.exception(f'Something happened {html_text} in file '
@@ -259,23 +235,14 @@ def main():
 
     logging.info(f'Scheduled {len(input_files)} files for conversion.')
 
-    sections_to_filter = file_to_set(args.filter_sections)
-    sections_to_filter_regex = file_to_regex(args.filter_sections_regex)
-    documents_to_filter = {re.compile(pattern, re.V0) for pattern in
-                           file_to_set(args.filter_documents)}
-    logging.info(f'Filtering {len(sections_to_filter)} sections.')
-    logging.info(f'Filtering {len(documents_to_filter)} document patterns.')
-
     with Pool(args.processes) as pool:
         f = partial(convert, output_dir=args.output_dir,
                     section_as_doc=args.unit == 'section',
                     format_args=args.format_json,
                     tokenizer_args=args.tokenizer_json,
-                    sections_to_filter=sections_to_filter,
-                    sections_to_filter_regex=sections_to_filter_regex,
-                    documents_to_filter=documents_to_filter,
                     uncased=args.uncased)
-        total_docs = sum(pool.imap_unordered(f, input_files))
+        progress_bar = partial(tqdm, total=len(input_files), file=sys.stdout)
+        total_docs = sum(progress_bar(pool.imap_unordered(f, input_files)))
         pool.close()
         pool.join()
 

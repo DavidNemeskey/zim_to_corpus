@@ -16,5 +16,5 @@ def parse(html_bytes: str) -> BeautifulSoup:
     :class:`NavigableString`s are dropped.
     """
     bs = BeautifulSoup(html_bytes)
-    unprettify(bs)
+    # unprettify(bs)
     return bs

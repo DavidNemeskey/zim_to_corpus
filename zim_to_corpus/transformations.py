@@ -203,12 +203,12 @@ def remove_sections(bs: BeautifulSoup,
                 title = title_tag.get_text().strip()
             except ValueError:
                 title = None
-            if title_tag.name != 'h1':
-                if (
-                    (sections and title in sections) or
-                    (regex and regex.search(title, re.I))
-                ):
-                    logging.debug(f'Removing title {title}...')
+            if title and title_tag.name != 'h1':
+                if sections and title in sections:
+                    logging.debug(f'Removing title {title} by set...')
+                    tag.decompose()
+                elif regex and regex.search(title):
+                    logging.debug(f'Removing title {title} by regex...')
                     tag.decompose()
                 elif is_empty(tag):
                     logging.debug(f'Removing empty {title}...')
