@@ -3,8 +3,8 @@
 
 """
 Converts documents (Wikipedia pages, Project Gutenberg books, etc.) in the
-"simple HTML" format (i.e. the output of convert.py) to various other formats
-(WT-2, BERT, CoNLL-U tsv, etc.)
+"simple HTML" format (i.e. the output of extract_zim_htmls.py) to various
+other formats (WT-2, BERT, CoNLL-U tsv, etc.)
 """
 
 from argparse import ArgumentParser
