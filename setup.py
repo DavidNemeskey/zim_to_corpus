@@ -65,6 +65,9 @@ setup(name='zim_to_corpus',
           'multiprocessing-logging',
           # A regex engine that supports Unicode character classes (\p{})
           'regex',
+          # For sending requests to tokenizer REST endpoints,
+          # particularly emtsv
+          'requests',
           # Progress bar
           'tqdm'
       ],
