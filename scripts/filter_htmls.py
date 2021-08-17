@@ -131,8 +131,9 @@ def filter_file(input_file: str, output_dir: str,
                 # As a last step, let's get rid of the empty tags now
                 remove_empty_tags(html)
 
-                print(json.dumps(str(html)), file=outf)
-                written += 1
+                if html.find('body'):
+                    print(json.dumps(str(html)), file=outf)
+                    written += 1
             except:
                 html_text = f'in {title} ' if html and title else ''
                 logging.exception(f'Something happened {html_text} in file '
