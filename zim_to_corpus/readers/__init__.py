@@ -8,6 +8,7 @@ import struct
 from typing import Callable, Generator
 
 from bs4 import BeautifulSoup
+import regex as re
 
 from .simple_html import parse as parse_simple_html  # noqa
 from .zim_gutenberg import parse as parse_gutenberg
@@ -56,3 +57,19 @@ def get_parser(data_type: str) -> Parser:
     except AttributeError:
         raise ValueError(f'No data_type {data_type}. Try one of '
                          f'{[c.canonical for c in Parser]}.')
+
+
+# For deleting control characters from the HTML text...
+del_ctrl = re.compile(r'[\p{C}--\t\n]', re.V1)
+# ... and replacing tabs and other whitespaces with spaces
+repl_sep = re.compile(r'[\p{Z}]', re.V1)
+repl_tab = re.compile(r'\t', re.V0)
+
+
+def normalize_text(text: str) -> str:
+    """
+    Cleans the text: removes control characters, normalizes whitespaces, etc.
+    """
+    clean_text = del_ctrl.sub('', text)
+    clean_text = repl_sep.sub(' ', repl_tab.sub('    ', clean_text))
+    return clean_text
