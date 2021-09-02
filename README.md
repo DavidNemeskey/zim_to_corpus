@@ -156,7 +156,7 @@ Example usage converting the Wikipedia pages to simple HTML, retaining links
 and converting mathematical formulas to a placeholder symbol:
 
 ```
-extract_zim_htmls.py -i hu_mini -o hu_json_htmls -t wikipedia '{"retain": ["a"], "replacements": {"math": "$MATH$"}, "delete_footnotes": true}' -P 4
+extract_zim_htmls.py -i hu_mini -o hu_json_htmls -t wikipedia -p '{"retain_tags": {"a": true}, "tag_replacements": {"math": "$MATH$"}, "delete_footnotes": true}' -P 4
 ```
 
 ## `filter_htmls.py`
