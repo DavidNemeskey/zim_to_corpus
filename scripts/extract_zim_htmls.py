@@ -28,10 +28,11 @@ from typing import Dict
 
 from bs4 import BeautifulSoup
 # from multiprocessing_logging import install_mp_handler
-import regex as re
 from tqdm import tqdm
 
-from zim_to_corpus.readers import enumerate_static_dump, get_parser, Parser
+from zim_to_corpus.readers import (
+    enumerate_static_dump, get_parser, normalize_text, Parser
+)
 from zim_to_corpus.transformations import remove_empty_tags
 from zim_to_corpus.utils import parse_json
 
@@ -78,8 +79,6 @@ def convert_to_json(input_file: str, output_file: str, data_type: str,
     """
     logging.info(f'Converting {input_file} to {output_file}...')
     parsed_docs = 0
-    # Deletes control characters from the HTML text
-    del_ctrl = re.compile(r'[\p{C}--\t\n]', re.V1)
     try:
         with gzip.open(output_file, 'wt') as outf:
             for doc_no, html in enumerate(enumerate_static_dump(input_file), 1):
@@ -93,7 +92,7 @@ def convert_to_json(input_file: str, output_file: str, data_type: str,
                     # it does it NOW. In this case, if anyone reparses
                     # our output and changes it, diff will still work and
                     # not report a lot of (potential) cosmetic changes.
-                    clean_text = del_ctrl.sub('', str(doc))
+                    clean_text = normalize_text(str(doc))
                     print(json.dumps(str(BeautifulSoup(clean_text))), file=outf)
                     parsed_docs += 1
                 else:

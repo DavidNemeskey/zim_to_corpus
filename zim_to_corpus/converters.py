@@ -13,7 +13,7 @@ import re
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
-from zim_to_corpus.html import headerp, listp
+from zim_to_corpus.html import headerp, lip, listp
 from zim_to_corpus.transformations import add_ids, matches, remove_tags
 from zim_to_corpus.tokenization import Tokenizer
 
@@ -84,7 +84,7 @@ class Converter:
         """
         position = 1
         for child in lst:
-            if child.name == 'li':
+            if lip.fullmatch(child.name):
                 self.convert_li(child, out, level,
                                 position if lst.name == 'ol' else 0)
                 position += 1
@@ -298,6 +298,7 @@ class TsvConverter(Converter):
         :param index: the position of the list item within the list. Needed
                       for ordered lists; ``0`` for unordered lists.
         """
+        li_text = StringIO()
         for child in li:
             # There should be only one
             if isinstance(child, NavigableString):
@@ -306,11 +307,17 @@ class TsvConverter(Converter):
                     bullet = f'{index}. ' if index else self.bullet
                 else:
                     bullet = ''
-                self.print_sentences(li, bullet + child, out)
+                li_text.write(bullet + child)
+                # self.print_sentences(li, bullet + child, out)
             elif listp.match(child.name):
                 self.convert_list(child, out, level + 1)
             else:
-                raise ValueError(f'Unexpected tag {child.name} in list item')
+                li_text.write(child.get_text())
+                # raise ValueError(f'Unexpected tag {child.name} in list item')
+
+        if li_value := li_text.getvalue():
+            self.print_sentences(li, li_value, out)
+
 
     def print_sentences(self, id_tag: Tag, content: str, out: StringIO):
         print(f'# newpar id = {id_tag.attrs.get("id")}', file=out)

@@ -156,7 +156,7 @@ Example usage converting the Wikipedia pages to simple HTML, retaining links
 and converting mathematical formulas to a placeholder symbol:
 
 ```
-extract_zim_htmls.py -i hu_mini -o hu_json_htmls -t wikipedia '{"retain": ["a"], "replacements": {"math": "$MATH$"}}' -P 4
+extract_zim_htmls.py -i hu_mini -o hu_json_htmls -t wikipedia -p '{"retain_tags": {"a": true}, "tag_replacements": {"math": "$MATH$"}, "delete_footnotes": true}' -P 4
 ```
 
 ## `filter_htmls.py`
@@ -184,6 +184,17 @@ Various output formats are supported, each of which has its own set parameters.
 The same can be said of the supported tokenizers. The available parameters can
 be found in the `zim_to_corpus.converters` module and
 `zim_to_corpus.tokenization` package.
+
+Usage example with converting the filtered htmls to tsv, tokenized with
+[emtsv](https://github.com/nytud/emtsv):
+
+```
+convert.py -i hu_filtered_htmls -o hu_tokenized_tsvs -u doc -f tsv -t "qun:http://localhost:5000" -P 4
+```
+
+**Note** that the paragraphs are sent to the tokenizers one-by-one. The
+tokenizer in `emtsv` exhibits abysmal performance in this use-case, taking
+more than a second to process a single page. Use with caution.
 
 ## `section_statistics.py`
 

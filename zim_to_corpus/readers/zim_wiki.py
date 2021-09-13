@@ -5,7 +5,7 @@
 
 import copy
 import logging
-from typing import Generator, Iterable, Mapping, Union
+from typing import Generator, Mapping, Union
 
 from bs4 import BeautifulSoup
 from bs4.element import Comment, NavigableString, Tag
@@ -36,12 +36,15 @@ class ZimHtmlParser:
     """
     def __init__(self, html_bytes: bytes,
                  retain_tags: Mapping[str, bool] = None,
-                 tag_replacements: Mapping[str, str] = None):
+                 tag_replacements: Mapping[str, str] = None,
+                 delete_footnotes: bool = False):
         """
         :param html_bytes: the raw HTML.
         :param retain: the names of tags to keep in the text.
         :param replacements: a tag name ``->`` replacement mapping for
                              tags to replace with a placeholder string.
+        :param delete_footnotes: if ``True``, footnotes are deleted from
+                                 the text.
         """
         self.old_bs = BeautifulSoup(html_bytes)
         self.new_bs = BeautifulSoup(html_template)
@@ -50,6 +53,7 @@ class ZimHtmlParser:
                        'h4': False, 'h5': False, 'h6': False}
         self.retain.update(dict(retain_tags or {}))
         self.replacements = dict(tag_replacements or {})
+        self.delete_footnotes = delete_footnotes
 
     def simplify(self) -> BeautifulSoup:
         """Does the conversion / simplification."""
@@ -113,6 +117,9 @@ class ZimHtmlParser:
         """
         if isinstance(node, NavigableString):
             new_parent.append(copy.copy(node))
+        elif (node.name == 'a' and self.delete_footnotes and
+              '#cite_note' in node.attrs['href']):
+            pass
         elif (rep := self.replacements.get(node.name)):
             new_parent.append(rep)
         elif node.name == 'math':
@@ -227,7 +234,7 @@ class ZimHtmlParser:
         """
         new_li = self.new_bs.new_tag(old_li.name)
 
-        content = []
+        # content = []
         for child in self.filter_tags(old_li, False):
             if isinstance(child, NavigableString):
                 new_li.append(copy.copy(child))

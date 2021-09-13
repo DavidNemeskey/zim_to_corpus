@@ -12,7 +12,7 @@ def readme():
         return f.read()
 
 setup(name='zim_to_corpus',
-      version='0.9',
+      version='0.9.1',
       description='Python package and scripts for reading and converting '
                   'the output of zim_to_dir (i.e. a corpus of Wikipedia '
                   'pages extracted from a .zim file) to various formats, '
@@ -65,6 +65,9 @@ setup(name='zim_to_corpus',
           'multiprocessing-logging',
           # A regex engine that supports Unicode character classes (\p{})
           'regex',
+          # For sending requests to tokenizer REST endpoints,
+          # particularly emtsv
+          'requests',
           # Progress bar
           'tqdm'
       ],

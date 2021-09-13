@@ -19,12 +19,12 @@ import sys
 from typing import Any, Dict, List, Pattern, Set
 
 from bs4 import BeautifulSoup
-from multiprocessing_logging import install_mp_handler
+# from multiprocessing_logging import install_mp_handler
 import regex as re
 from tqdm import tqdm
 
 from zim_to_corpus.html import get_html_title, get_section_title, html_template
-from zim_to_corpus.readers import parse_simple_html
+from zim_to_corpus.readers import normalize_text, parse_simple_html
 from zim_to_corpus.utils import (
     get_subclasses_of, identity, instantiate, parse_json, prefix_name
 )
@@ -153,8 +153,6 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
     )
 
     logging.info(f'Converting {input_file} to {output_file}...')
-    # Deletes control characters from the HTML text
-    del_ctrl = re.compile(r'[\p{C}--\t\n]', re.V1)
     with gzip.open(input_file) as inf, gzip.open(output_file, 'wt') as outf:
         header = converter.header()
         if header:
@@ -163,7 +161,8 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
             html = None
             try:
                 raw_html = json.loads(line)
-                html = parse_simple_html(del_ctrl.sub('', raw_html))
+                clean_html = normalize_text(raw_html)
+                html = parse_simple_html(clean_html)
                 title = get_html_title(html)
 
                 # Just to be on the safe side
@@ -222,7 +221,7 @@ def main():
         level=getattr(logging, args.log_level.upper()),
         format='%(asctime)s - %(process)s - %(levelname)s - %(message)s'
     )
-    install_mp_handler()
+    # install_mp_handler()
 
     logging.info(f'Script: {__file__}, args: {args}')
 

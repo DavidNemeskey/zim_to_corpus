@@ -1,18 +1,18 @@
 # Using the oldest working release so that we are compatible with as many
 # releases as possible (compiling on a newer release would make us end up
-# glibc tokens that don't exist on older releases)
+# with glibc tokens that don't exist on older releases)
 FROM ubuntu:18.10
-
-# This is only needed for unsupported releases, such as 18.10
-RUN cat /etc/apt/sources.list | sed -e "s/archive/old-releases/" -e "s/security/old-releases/" > xxx && mv xxx /etc/apt/sources.list
-# Install get so that we can obtain libzim
-RUN apt update
 
 # To make sure tzdata (or other packages) don't ask questions
 # See https://serverfault.com/questions/949991/
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=Europe/Budapest
 
+# This is only needed for unsupported releases, such as 18.10
+RUN cat /etc/apt/sources.list | sed -e "s/archive/old-releases/" -e "s/security/old-releases/" > xxx && mv xxx /etc/apt/sources.list
+RUN apt update
+
+# Install git so that we can obtain libzim
 RUN apt install -y git
 # Build tools
 RUN apt install -y build-essential meson pkg-config
