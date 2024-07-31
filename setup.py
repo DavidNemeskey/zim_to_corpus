@@ -61,7 +61,7 @@ setup(name='zim_to_corpus',
       ],
       install_requires=[
           'beautifulsoup4',
-          'lxml==4.6.5',
+          'lxml==4.9.1',
           'multiprocessing-logging',
           # A regex engine that supports Unicode character classes (\p{})
           'regex',
