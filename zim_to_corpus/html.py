@@ -103,3 +103,7 @@ def merge_strings(tag: Union[BeautifulSoup, Tag], bs: BeautifulSoup = None):
                              f'a BeautifulSoup instance, not {type(tag)}.')
         bs = tag
     return _merge_strings(tag, bs)
+
+
+def count_characters_in_p_tags(bs: BeautifulSoup):
+    return sum(len(tag.get_text(strip=True)) for tag in bs.find_all('p'))

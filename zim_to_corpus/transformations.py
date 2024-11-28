@@ -218,3 +218,9 @@ def remove_sections(bs: BeautifulSoup,
                     raise StopVisitor(f'First section not in set: {title}')
 
     visit_tree(bs, post_tag_callback=post_remove)
+
+
+def replace_a_with_anchor(bs: BeautifulSoup):
+    """Replaces all ``<a>`` tags in _html_ with the anchor text."""
+    for a_tag in bs.find_all('a'):
+        a_tag.replace_with(a_tag.get_text())

@@ -21,7 +21,7 @@ from multiprocessing_logging import install_mp_handler
 import regex as re
 from tqdm import tqdm
 
-from zim_to_corpus.html import get_html_title
+from zim_to_corpus.html import count_characters_in_p_tags, get_html_title
 from zim_to_corpus.readers import parse_simple_html
 from zim_to_corpus.transformations import remove_empty_tags, remove_sections
 
@@ -46,6 +46,10 @@ def parse_arguments():
                              'for titles of documents to skip. Some documents '
                              'might turn out to be useless, contain content '
                              'that breaks the tokenizer, etc.')
+    parser.add_argument('--min-length', '-m', type=int, default=0,
+                        help='the minimum length of the document WITHOUT '
+                             'LISTS. If 0 (the default), no document is '
+                             'filtered based on length.')
     parser.add_argument('--processes', '-P', type=int, default=1,
                         help='number of worker processes to use (max is the '
                              'num of cores, default: 1)')
@@ -100,7 +104,8 @@ def file_to_regex(file_name: str) -> Pattern:
 def filter_file(input_file: str, output_dir: str,
                 sections_to_filter: Set[str],
                 sections_to_filter_regex: Pattern,
-                documents_to_filter: Set[Pattern]) -> Tuple[int, int]:
+                documents_to_filter: Set[Pattern],
+                min_length: int = 0) -> Tuple[int, int]:
     """
     Filters sections and documents from _intput_file_ and writes the rest
     to _output_file_. Returns the number of documents read and written as
@@ -131,6 +136,13 @@ def filter_file(input_file: str, output_dir: str,
                 # As a last step, let's get rid of the empty tags now
                 remove_empty_tags(html)
 
+                # Finally, remove short documents
+                if min_length > 0:
+                    if (length := count_characters_in_p_tags(html)) < min_length:
+                        logging.debug(f'Document {title} is too short at '
+                                      f'{length} characters; dropped.')
+                        continue
+
                 if html.find('body'):
                     print(json.dumps(str(html)), file=outf)
                     written += 1
@@ -150,7 +162,7 @@ def main():
         level=getattr(logging, args.log_level.upper()),
         format='%(asctime)s - %(process)s - %(levelname)s - %(message)s'
     )
-    install_mp_handler()
+    # install_mp_handler()
 
     logging.info(f'Script: {__file__}, args: {args}')
 
@@ -182,7 +194,8 @@ def main():
         f = partial(filter_file, output_dir=args.output_dir,
                     sections_to_filter=sections_to_filter,
                     sections_to_filter_regex=sections_to_filter_regex,
-                    documents_to_filter=documents_to_filter)
+                    documents_to_filter=documents_to_filter,
+                    min_length=args.min_length)
         progress_bar = partial(tqdm, total=len(input_files), file=sys.stdout)
         docs_read, docs_written = 0, 0
         for read, written in progress_bar(pool.imap_unordered(f, input_files)):

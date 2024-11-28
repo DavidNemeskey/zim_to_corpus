@@ -77,14 +77,19 @@ def convert_to_json(input_file: str, output_file: str, data_type: str,
     :param data_type: the type of the content to parse (Wikipedia, ...)
     :returns: the number of documents converted.
     """
-    logging.info(f'Converting {input_file} to {output_file}...')
+    logging.debug(f'Converting {input_file} to {output_file}...')
     parsed_docs = 0
+    doc_no = 0
     try:
         with gzip.open(output_file, 'wt') as outf:
             for doc_no, html in enumerate(enumerate_static_dump(input_file), 1):
                 doc = get_parser(data_type).parse(html, **parser_args)
                 # Only keep non-empty (e.g. not-all-image) pages
-                remove_empty_tags(doc)
+                try:
+                    remove_empty_tags(doc)
+                except:
+                    logging.info(f'YYY {doc}')
+                    raise
                 if doc.find('body'):
                     # print(json.dumps(doc.prettify()), file=outf)
                     # We re-parse the HTML so that if BeautifulSoup does any
@@ -93,7 +98,9 @@ def convert_to_json(input_file: str, output_file: str, data_type: str,
                     # our output and changes it, diff will still work and
                     # not report a lot of (potential) cosmetic changes.
                     clean_text = normalize_text(str(doc))
-                    print(json.dumps(str(BeautifulSoup(clean_text))), file=outf)
+                    print(json.dumps(str(BeautifulSoup(clean_text)),
+                                     ensure_ascii=False),
+                          file=outf)
                     parsed_docs += 1
                 else:
                     title_tag = doc.find('title')

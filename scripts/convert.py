@@ -130,7 +130,9 @@ def uncase(text):
     return text.lower()
 
 
-def convert(input_file: str, output_dir: str, section_as_doc: bool,
+def convert(input_file: str,
+            output_dir: str,
+            section_as_doc: bool,
             format_args: Dict[str, Any],
             tokenizer_args: Dict[str, Any],
             uncased: bool = False) -> int:
@@ -171,10 +173,11 @@ def convert(input_file: str, output_dir: str, section_as_doc: bool,
                 # We are done, let's print the document!
                 if section_as_doc:
                     for section_doc in sections_to_docs(html):
-                        print(case(converter(section_doc)),
+                        print(case(converter(section_doc, title)),
                               file=outf, end='')
                 else:
-                    print(case(converter(html)), file=outf, end='')
+                    doc = case(converter(html, title))
+                    print(doc, file=outf, end='')
             except:
                 html_text = f'in {title} ' if html and title else ''
                 logging.exception(f'Something happened {html_text} in file '

@@ -5,6 +5,7 @@
 
 import copy
 import logging
+import re
 from typing import Generator, Mapping, Union
 
 from bs4 import BeautifulSoup
@@ -34,6 +35,12 @@ class ZimHtmlParser:
     on wikipedia.org. Also, even some of the .zim files have differently
     structured HTMLs; however, the main Wikipedia dumps (_all_) should work.
     """
+
+    # pattern to delete licensing boilerplate
+    noindexp = re.compile(b'<!--htdig_noindex-->.*?<!--/htdig_noindex-->',
+                          re.DOTALL)
+    div_skip_classp = re.compile('tarsprojekt-alap')
+
     def __init__(self, html_bytes: bytes,
                  retain_tags: Mapping[str, bool] = None,
                  tag_replacements: Mapping[str, str] = None,
@@ -46,18 +53,22 @@ class ZimHtmlParser:
         :param delete_footnotes: if ``True``, footnotes are deleted from
                                  the text.
         """
-        self.old_bs = BeautifulSoup(html_bytes)
+        html_bytes2 = ZimHtmlParser.noindexp.sub(b'', html_bytes)
+        self.old_bs = BeautifulSoup(html_bytes2)
         self.new_bs = BeautifulSoup(html_template)
         self.title = self.old_bs.find('title').get_text()
-        self.retain = {'p': False, 'h1': False, 'h2': False, 'h3': False,
-                       'h4': False, 'h5': False, 'h6': False}
+        self.retain = {'p': False, 'h1': False, 'h2': True, 'h3': True,
+                       'h4': True, 'h5': True, 'h6': True}
         self.retain.update(dict(retain_tags or {}))
         self.replacements = dict(tag_replacements or {})
         self.delete_footnotes = delete_footnotes
 
+        self.headerp = re.compile('h[2-6]')
+
     def simplify(self) -> BeautifulSoup:
         """Does the conversion / simplification."""
         self.new_bs.html.head.title.append(self.title)
+        logging.debug(f'Simplifying document {self.title}...')
 
         # Let's start with the main content
         old_body = self.old_bs.find('div', id='mw-content-text')
@@ -115,6 +126,7 @@ class ZimHtmlParser:
         retain and replace, passed to :meth:`__init__`, are honored; of all
         the other tags, only the text is kept.
         """
+        logging.debug(f'XXX parse_generic {node.name}')
         if isinstance(node, NavigableString):
             new_parent.append(copy.copy(node))
         elif (node.name == 'a' and self.delete_footnotes and
@@ -145,15 +157,17 @@ class ZimHtmlParser:
         :param new_parent: the to-be-parent of section tag in simplified DOM.
                            Mostly `<body>` or another `<section>`.
         """
+        logging.debug(f'XXX parse_section {old_section.name}')
         new_section = self.new_bs.new_tag('section')
         for child in self.filter_tags(old_section):
+            logging.debug(f'XXX child {child.name}')
             if isinstance(child, NavigableString):
                 logging.warning(f'NavigableString >{child}< in '
                                 f'{old_section.name} in {self.title}.')
                 # raise ValueError(f'NavigableString >{child}< in {old_section.name}')
-            elif child.name == 'details':
+            elif child.name == 'details' or child.name == 'section':
                 self.parse_section(child, new_section)
-            elif child.name == 'p':
+            elif child.name == 'p' or self.headerp.fullmatch(child.name):
                 self.parse_generic(child, new_section)
             elif child.name == 'div':
                 self.parse_div(child, new_section)
@@ -176,6 +190,12 @@ class ZimHtmlParser:
         :meth:`parse_section`, only it doesn't allow ``section``s inside of
         the ``div``.
         """
+        logging.debug(f'XXX parse_div {old_div.name}')
+        # Throw away non-content divs
+        for cls in old_div.get('class', []):
+            if ZimHtmlParser.div_skip_classp.match(cls):
+                logging.debug(f'Throwing away div with class {cls}')
+                return
         for child in self.filter_tags(old_div):
             if isinstance(child, NavigableString):
                 logging.warning(f'NavigableString >{child}< in '
@@ -204,6 +224,7 @@ class ZimHtmlParser:
         :param old_list: the `ol` or `ul` tag in the DOM of the original page.
         :param new_parent: the to-be-parent of list tag in simplified DOM.
         """
+        logging.debug(f'XXX parse_list {old_list.name}')
         new_list = self.new_bs.new_tag(old_list.name)
         for child in self.filter_tags(old_list):
             if isinstance(child, NavigableString):
@@ -281,12 +302,15 @@ class ZimHtmlParser:
                                   children are filtered as well.
         """
         for child in tag.children:
+            logging.debug(f'XXX filtering {tag.name} -> {child.name}')
             if isinstance(child, Comment):
                 continue
             elif isinstance(child, NavigableString) and empty_strings_too:
                 if child.strip():
+                    logging.debug(f'XXX yielding...')
                     yield child
             else:
+                logging.debug(f'XXX yielding...')
                 yield child
 
 

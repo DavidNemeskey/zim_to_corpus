@@ -161,7 +161,9 @@ extract_zim_htmls.py -i hu_mini -o hu_json_htmls -t wikipedia -p '{"retain_tags"
 
 ## `filter_htmls.py`
 
-Filters documents and sections from the output of `extract_zim_htmls.py`.
+Filters documents and sections from the output of `extract_zim_htmls.py`. Also
+has an option to filter documents which fall below a certain character count
+after section removal.
 
 Example usage:
 

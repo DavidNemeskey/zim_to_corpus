@@ -7,6 +7,7 @@ other formats.
 """
 
 from functools import partial
+import json
 from io import StringIO
 import re
 
@@ -14,7 +15,9 @@ from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
 from zim_to_corpus.html import headerp, lip, listp
-from zim_to_corpus.transformations import add_ids, matches, remove_tags
+from zim_to_corpus.transformations import (
+    add_ids, matches, remove_tags, replace_a_with_anchor
+)
 from zim_to_corpus.tokenization import Tokenizer
 
 class Converter:
@@ -40,18 +43,23 @@ class Converter:
             pattern.append('h[0-9]+')
         self.pattern = re.compile('|'.join(pattern)) if pattern else None
 
-    def __call__(self, html: BeautifulSoup) -> str:
+    def __call__(self, html: BeautifulSoup, title: str = '') -> str:
         """
         Converts _html_ to text in a specific format.
 
         :param html: the minimal HTML representation of a Wikipedia page.
+        :param title: the document title. Only used if _to_json_ is ``True``.
+        :param to_json: converts the document to a JSON dictionary, with the
+                  text under the "text" key and the title under "id".
         :returns: the converted text, which might be empty, if the original
                   document was empty as well.
         """
         out = StringIO()
         self.convert_document(html, out)
         doc_text = out.getvalue()
-        return doc_text if not doc_text.isspace() else ''
+        if doc_text.isspace():
+            doc_text = ''
+        return doc_text
 
     def header(self):
         """
@@ -67,6 +75,7 @@ class Converter:
         """
         if self.pattern:
             remove_tags(html, partial(matches, pattern=self.pattern))
+        replace_a_with_anchor(html)
         body = html.find('body')
         if body:
             for section in (c for c in body.children if isinstance(c, Tag)):
@@ -318,7 +327,6 @@ class TsvConverter(Converter):
         if li_value := li_text.getvalue():
             self.print_sentences(li, li_value, out)
 
-
     def print_sentences(self, id_tag: Tag, content: str, out: StringIO):
         print(f'# newpar id = {id_tag.attrs.get("id")}', file=out)
         for sentence in self.tokenizer(content):
@@ -326,3 +334,70 @@ class TsvConverter(Converter):
             for token in sentence.tokens:
                 print(token, file=out)
             print(file=out)
+
+
+class JsonlConverter(Converter):
+    def __init__(self, tokenizer: Tokenizer, bullet: str = '-', indent: int = 4):
+        """
+        Creates a new :class:`JSONConverter`.
+
+        :param tokenizer: not used.
+        :param bullet: the character to use as bullets for lists. The default is
+                       ``-``.
+        :param indent: the number of spaces to indent a list embedded in
+                       another. The default is 4.
+        """
+        super().__init__(True, True)
+
+        self.bullet = f'{bullet} ' if bullet else ''
+        self.indent = ' ' * indent
+
+    def __call__(self, html: BeautifulSoup, title: str = '') -> str:
+        doc_text = super().__call__(html, title).rstrip('\n')
+        return json.dumps({'id': title, 'text': doc_text},
+                          ensure_ascii=False) + '\n'
+
+    def convert_section(self, section: Tag, out: StringIO):
+        """
+        Converts a section to text. The text is written to _out_.
+
+        :param section: the section tag.
+        :param out: the :class:`StringIO` that collects the output.
+        """
+        for child in section.children:
+            if headerp.match(child.name):
+                print(child.get_text(), file=out)
+            elif listp.match(child.name):
+                self.convert_list(child, out)
+            elif child.name == 'section':
+                self.convert_section(child, out)
+            elif child.name == 'p':
+                print(child.get_text(), file=out)
+            else:
+                raise ValueError(f'Unexpected tag {child.name} in section')
+
+    def convert_li(self, li: Tag, out: StringIO, level: int, index: int):
+        """
+        Converts a list item to text. The text is written to _out_.
+
+        :param lst: the ``<li>`` tag.
+        :param out: the :class:`StringIO` that collects the output.
+        :param level: the embedding "level" of the list. Top-level lists have
+                      _level_ ``0``, a list embedded into one _level_ ``1``,
+                      etc.
+        :param index: the position of the list item within the list. Needed
+                      for ordered lists; ``0`` for unordered lists.
+        """
+        for child in li:
+            # There should be only one
+            if isinstance(child, NavigableString):
+                # Need bullets / numbers
+                if self.bullet:
+                    bullet = f'{index}. ' if index else self.bullet
+                else:
+                    bullet = ''
+                print(f'{self.indent * level}{bullet} {child}', file=out)
+            elif listp.match(child.name):
+                self.convert_list(child, out, level + 1)
+            else:
+                raise ValueError(f'Unexpected tag {child.name} in list item')
